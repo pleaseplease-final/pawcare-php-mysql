@@ -28,6 +28,7 @@ require_once __DIR__ . '/controllers/PetsController.php';
 require_once __DIR__ . '/controllers/AppointmentsController.php';
 require_once __DIR__ . '/controllers/MedicalController.php';
 require_once __DIR__ . '/controllers/ReportsController.php';
+require_once __DIR__ . '/controllers/ClinicController.php';
 
 // Parse URI path
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -144,6 +145,17 @@ try {
     }
     if ($path === '/api/reports/appointments') {
         ReportsController::appointmentsReport();
+        exit;
+    }
+
+    // 7.1 Clinic Document Profile & Prices (Fixes "Loading clinic details" lag)
+    if ($path === '/api/clinic-document-profile') {
+        if ($method === 'GET') ClinicController::getDocumentProfile();
+        elseif ($method === 'PUT' || $method === 'POST') ClinicController::updateDocumentProfile();
+        exit;
+    }
+    if ($path === '/api/services/prices' || $path === '/api/catalog') {
+        ClinicController::getPrices();
         exit;
     }
 

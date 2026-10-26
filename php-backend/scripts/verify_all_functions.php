@@ -171,11 +171,13 @@ test("Appointments Module - View Appointments (/api/appointments)", function() u
 $newApptId = null;
 test("Appointments Module - Book Appointment (/api/appointments)", function() use (&$authToken, &$newPetId, &$newApptId) {
     $petId = $newPetId ?: 'p_1';
+    $randomMinute = str_pad(rand(0, 59), 2, '0', STR_PAD_LEFT);
+    $randomHour = str_pad(rand(8, 17), 2, '0', STR_PAD_LEFT);
     $res = apiRequest('POST', '/api/appointments', [
         'pet_id' => $petId,
         'vet_id' => 'u_vet_1',
-        'date' => date('Y-m-d', strtotime('+1 day')),
-        'time' => '15:00',
+        'date' => date('Y-m-d', strtotime('+' . rand(1, 30) . ' days')),
+        'time' => "{$randomHour}:{$randomMinute}",
         'reason' => 'Annual Rabies Booster Shot',
         'amount' => 750.00
     ], $authToken);
@@ -259,6 +261,12 @@ test("State Sync - Full Frontend Bootstrap Sync (/api/state)", function() use (&
 test("Evaluator Dashboard - HTML Web Portal (/dashboard)", function() {
     $res = apiRequest('GET', '/dashboard');
     return $res['code'] === 200 && str_contains($res['raw'], 'PawCare Veterinary Clinic Hub');
+});
+
+// 21. Clinic Document Profile (Instant Clinic Details)
+test("Clinic Profile - Instant Clinic Details Load (/api/clinic-document-profile)", function() {
+    $res = apiRequest('GET', '/api/clinic-document-profile');
+    return $res['code'] === 200 && !empty($res['data']['profile']['details']['name']);
 });
 
 echo "===============================================================\n";
