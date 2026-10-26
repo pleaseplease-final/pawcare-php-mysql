@@ -3,10 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.php": {
-      "runtime": "vercel-php@0.9.0",
-      "includeFiles": "php-backend/**"
-    },
     "api/index.js": {
       "includeFiles": "{server/**,src/booking.js,src/bookingReason.js,src/prescription.js,src/clinicalWorkflow.js,src/intakeVisit.js,src/reminderCall.js,src/clinicDocumentValidation.js}",
       "maxDuration": 300
@@ -14,16 +10,8 @@
   },
   "rewrites": [
     {
-      "source": "/dashboard",
-      "destination": "/api/index.php"
-    },
-    {
-      "source": "/api/php/(.*)",
-      "destination": "/api/index.php"
-    },
-    {
       "source": "/api/(.*)",
-      "destination": "/api/index.php"
+      "destination": "/api/index.js"
     },
     {
       "source": "/(.*)",
