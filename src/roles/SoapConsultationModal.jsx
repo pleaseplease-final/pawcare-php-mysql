@@ -90,7 +90,7 @@ export default function SoapConsultationModal({ appt, pet, db, setDb, me, onClos
     vaccine: initialVaccineForVisit(appt),
     doseNo: formType==='deworming' ? "1" : "",
     doseOf: formType==='deworming' ? "1" : "",
-    intervalDays: "",dewormingManual:false,dewormingWeaned:false,dewormingMonthlyRisk:false,dewormingProductId:"",vaccineManual:false,procedureType:"",procedureDecision:"",procedureNotes:"",vaccineManual:false,
+    intervalDays: "",dewormingManual:false,dewormingWeaned:false,dewormingMonthlyRisk:false,dewormingProductId:"",procedureType:"",procedureDecision:"",procedureNotes:"",vaccineManual:false,
     scheduleApproved: false,
     brand: "",
     batch: "",
