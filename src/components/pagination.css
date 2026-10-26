@@ -1,0 +1,13 @@
+.pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:16px;margin:0;border-top:1px solid #e2e8f0;background:#fff;color:#5b6c85;font-size:calc(12px*var(--fs,1));line-height:1.5;min-width:0;white-space:normal}
+.pagination-range{margin:0;overflow-wrap:anywhere}.pagination-range b{color:#203f78;font-variant-numeric:tabular-nums}.pagination-range span{color:#6a7a91}
+.pagination-controls{display:flex;align-items:center;gap:5px;max-width:100%;flex-wrap:wrap}
+.pagination-controls button{display:inline-flex;justify-content:center;align-items:center;min-width:36px;height:36px;padding:6px;border:1px solid #dce4f0;border-radius:9px;background:#fff;color:#284b88;font:inherit;font-weight:600;cursor:pointer}
+.pagination-controls button:hover:not(:disabled){background:#edf3ff;border-color:#94b0e1}.pagination-controls button:focus-visible{outline:3px solid #658be3;outline-offset:2px}
+.pagination-controls button[aria-current=page]{background:#244dba;color:#fff;border-color:#244dba}.pagination-controls button:disabled{opacity:.38;cursor:default}
+.pagination-number{display:inline-flex;align-items:center;gap:5px}.pagination-gap{padding:0 2px}.pagination-mobile-page{display:none;font-variant-numeric:tabular-nums;min-width:42px;text-align:center}
+.pagination-hidden-row,.pagination-hidden-item{display:none!important}
+@media(max-width:600px){.pagination{padding:14px 10px;justify-content:center;text-align:center;gap:10px}.pagination-range{width:100%}.pagination-controls{justify-content:center}.pagination-number{display:none}.pagination-mobile-page{display:inline-block}}
+@media print{.pagination{display:none!important}.pagination-hidden-row{display:table-row!important}.pagination-hidden-item{display:revert!important}}
+.shell .sf-approval-list{max-height:none;overflow:visible}
+.clinic-history-more{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;background:#eef4fd;border:1px solid #dce7f7;border-radius:12px;color:#5d7393;font-size:calc(12px*var(--fs,1))}
+.clinic-history-more p{margin:0;max-width:650px;line-height:1.7}

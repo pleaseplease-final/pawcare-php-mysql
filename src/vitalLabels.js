@@ -1,0 +1,1 @@
+export const weightSourceLabel = pet => pet.weightOrigin==='clinic' ? 'Latest clinic weight' : pet.weightOrigin==='registration' || pet.registrationStatus==='Pending' ? 'Registration weight (reported)' : 'Weight (source unrecorded)';

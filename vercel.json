@@ -1,0 +1,27 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "{server/**,src/booking.js,src/bookingReason.js,src/prescription.js,src/clinicalWorkflow.js,src/intakeVisit.js,src/reminderCall.js,src/clinicDocumentValidation.js}",
+      "maxDuration": 300
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/jobs/vaccination-reminders",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}

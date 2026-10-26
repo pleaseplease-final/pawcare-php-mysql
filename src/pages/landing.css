@@ -1,0 +1,30 @@
+/* Landing page uses the full screen width (small even padding on both sides instead of a narrow centered column). */
+.w{--wx:clamp(16px,3vw,48px)}
+.w .wc{max-width:none;width:100%;margin:0;padding:0;box-sizing:border-box}
+.w .wc>*{max-width:none;box-sizing:border-box;margin-left:0;margin-right:0;padding-left:var(--wx);padding-right:var(--wx)}
+
+/* Landing page buttons: same height, same text size, wrap nicely, stack on phones. */
+.w .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:10px 22px;font-size:calc(14px*var(--fs,1));font-weight:700;line-height:1.2;text-decoration:none;white-space:nowrap}
+.w .btn.sm{min-height:36px;padding:6px 16px;font-size:calc(13px*var(--fs,1))}
+.w .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+/* header: logo | links | Log in + Sign up */
+.wnav{flex-wrap:nowrap;gap:16px}
+.wnav nav{flex:1;justify-content:center;gap:22px}
+.wnavr{display:flex;gap:10px;align-items:center;flex:none}
+.wnav nav a:hover{color:var(--blue)}
+@media(max-width:900px){
+  .wnav{flex-wrap:wrap}
+  .wnav nav{order:3;flex:1 0 100%;gap:18px;overflow-x:auto;justify-content:flex-start;padding-top:2px}
+}
+@media(max-width:480px){
+  .wnavr .btn{min-height:40px;padding:8px 14px}
+}
+
+/* hero and call-to-action buttons */
+.whero .row{margin-top:4px}
+@media(max-width:560px){
+  .whero .row .btn,.wcta .row .btn{flex:1 1 100%}
+}
+/* portal cards: Open portal + Create account sit side by side and wrap */
+.fc .row{gap:8px}

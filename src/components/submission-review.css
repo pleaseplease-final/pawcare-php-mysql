@@ -1,0 +1,15 @@
+.submission-review{box-sizing:border-box;width:min(620px,calc(100% - 32px));max-height:90dvh;margin:auto;padding:24px;border:0;border-top:7px solid var(--butter,#f5c542);border-radius:20px;color:var(--ink,#1e293b);background:#fff;overflow:auto;overflow-wrap:anywhere;box-shadow:0 24px 70px #0f172a44}
+.submission-review::backdrop{background:#14234399}
+.submission-review h3{margin:0 0 10px;color:var(--navy,#142343);font-size:calc(21px*var(--fs,1))}
+.submission-review>p{line-height:1.5}
+.submission-review dl{margin:18px 0;display:grid;gap:0}
+.submission-review dl>div{display:grid;grid-template-columns:minmax(110px,1fr) minmax(0,2fr);gap:12px;padding:10px 0;border-bottom:1px solid #e2e8f0}
+.submission-review dt{font-weight:600;color:#475569}
+.submission-review dd{margin:0;white-space:pre-wrap;line-height:1.5;min-width:0}
+.submission-review .row{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:20px}
+.submission-review img{max-width:100px;max-height:100px;object-fit:cover;border-radius:8px}
+@media(max-width:480px){.submission-review{padding:18px}.submission-review dl>div{grid-template-columns:1fr;gap:4px}.submission-review .row .btn{flex:1 1 150px}}
+.submission-review[open]{display:flex;flex-direction:column}
+.submission-review h3,.submission-review>p,.submission-review>.row{flex:0 0 auto}
+.submission-review dl{flex:1 1 auto;min-height:0;overflow:auto}
+.submission-review dl:focus-visible{outline:2px solid var(--navy,#142343);outline-offset:2px}

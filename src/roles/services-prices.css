@@ -1,0 +1,17 @@
+.ow-prices .ow-prices-heading{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ow-prices .ow-note{margin:18px 0;line-height:1.6;color:#526487}
+.ow-prices .ow-price-types{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.ow-prices .ow-price-filters{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.ow-prices .ow-lbl{display:block;font-size:calc(13px*var(--fs,1));margin-bottom:6px}
+.ow-prices .ow-price-filters input,.ow-prices .ow-price-filters select{width:100%;min-width:0}
+.ow-prices .ow-price-count{margin:16px 0;color:#526487}
+.ow-prices .ow-price-group{margin-top:22px}.ow-prices .ow-price-group h4{margin-bottom:10px}
+.ow-prices .ow-price-list{list-style:none;margin:0;padding:0;border:1px solid #dce4ef;border-radius:12px;overflow:hidden}
+.ow-prices .ow-price-list li{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px}
+.ow-prices .ow-price-list li+li{border-top:1px solid #dce4ef}
+.ow-prices .ow-price-detail{min-width:0;overflow-wrap:anywhere}.ow-prices .ow-price-detail h5{font-size:calc(14px*var(--fs,1));margin:0 0 5px}
+.ow-prices .ow-price-detail p{font-size:calc(13px*var(--fs,1));color:#526487;margin:0;line-height:1.6}
+.ow-prices .ow-price-rx{display:inline-block;margin-top:8px;color:#1e40af;background:#eff6ff;padding:4px 9px;border-radius:8px;font-size:calc(12px*var(--fs,1))}
+.ow-prices .ow-price-amount{text-align:right;flex-shrink:0}.ow-prices .ow-price-amount strong{display:block;font-size:calc(18px*var(--fs,1));color:#203c63}
+.ow-prices .ow-price-amount small{font-size:calc(12px*var(--fs,1));color:#526487}
+@media(max-width:600px){.ow-prices .ow-price-filters{grid-template-columns:1fr}.ow-prices .ow-price-list li{align-items:flex-start;flex-direction:column;gap:12px}.ow-prices .ow-price-amount{text-align:left}}

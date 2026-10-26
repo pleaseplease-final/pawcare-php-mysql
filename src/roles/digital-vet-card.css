@@ -1,0 +1,111 @@
+.digital-vet-card{background:#fff;border:1px solid #cbd5e1;border-radius:14px;padding:20px;margin:16px 0;color:#1e293b}
+.vet-card-heading,.vet-card-event header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.vet-card-heading h3{margin:0}.vet-card-heading p{margin:8px 0}.vet-card-identity{background:#f1f5f9;border-radius:10px;padding:16px;margin:16px 0;overflow-wrap:anywhere}
+.vet-card-identity address{font-style:normal}.vet-card-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+.vet-card-filters label,.clinic-document-fields label{display:flex;flex-direction:column;gap:5px}
+.vet-card-event,.vet-card-visit{border:1px solid #e2e8f0;border-left:4px solid #2563eb;border-radius:8px;padding:14px;margin:12px 0;overflow-wrap:anywhere}
+.vet-card-event time{font-size:.85rem;color:#475569}.vet-card-event summary,.vet-card-visit summary{cursor:pointer;font-weight:600;padding:6px 0}
+.vet-card-notes{white-space:pre-wrap;overflow-wrap:anywhere}.vet-card-notes dt{font-weight:700}.vet-card-notes dd{margin:4px 0 12px}.vet-card-correction{color:#92400e;background:#fffbeb;padding:8px}
+.clinic-document-fields{display:grid;gap:14px;max-width:650px}.clinic-document-fields .clinic-confirm{display:block}
+@media(max-width:600px){.digital-vet-card{padding:12px}.vet-card-heading .row{flex-wrap:wrap}.vet-card-filters{grid-template-columns:1fr}}
+
+.clinic-document-settings{max-width:1120px;padding:28px;min-width:0}
+.clinic-document-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.clinic-document-heading h2{font-size:calc(22px*var(--fs,1));line-height:1.35;margin:6px 0 10px}.clinic-document-heading p{margin:0;color:#52647e;line-height:1.7}
+.clinic-document-eyebrow{font-size:calc(11px*var(--fs,1));font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#52647e}
+.clinic-document-status{display:inline-flex;border:1px solid #f1d58b;background:#fffbeb;color:#854d0e;padding:7px 11px;border-radius:99px;font-size:calc(12px*var(--fs,1));font-weight:600;white-space:nowrap}
+.clinic-document-status.is-verified{border-color:#b7dfcb;background:#effaf4;color:#166534}
+.clinic-document-notice{background:#f1f6ff;border:1px solid #d8e5f7;border-radius:10px;padding:13px 16px;font-size:calc(13px*var(--fs,1));line-height:1.7;margin:20px 0;color:#345477}
+.clinic-document-audit{font-size:calc(12px*var(--fs,1));color:#52647e;overflow-wrap:anywhere}
+.clinic-document-settings .clinic-document-fields{display:block;max-width:none;min-width:0;border:0;border-top:1px solid #e2e8f0;margin:24px 0 0;padding:20px 0 0}
+.clinic-document-fields legend{padding:0 12px 0 0;font-weight:700;font-size:calc(15px*var(--fs,1));color:#203c63}
+.clinic-document-section-note{font-size:calc(12px*var(--fs,1));color:#52647e;margin:0 0 18px;line-height:1.6}
+.clinic-document-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.clinic-document-field{min-width:0}.clinic-document-field-wide{grid-column:1/-1}
+.clinic-document-settings .clinic-document-field label{display:block;font-size:calc(13px*var(--fs,1));font-weight:600;margin-bottom:7px}
+.clinic-document-field label>span{color:#a42c32}.clinic-document-field small{display:block;color:#52647e;font-size:calc(11px*var(--fs,1));line-height:1.6;margin-top:6px}
+.clinic-document-field textarea{resize:vertical;min-height:74px}
+.clinic-document-settings [aria-invalid=true]{border-color:#c43d46;background:#fffafb}
+.clinic-document-settings :is(input,textarea):focus-visible{outline:3px solid #a9c3f5;outline-offset:2px}
+.clinic-document-settings .field-feedback:empty{display:none}.clinic-document-settings .field-feedback{margin-top:6px}
+.clinic-document-confirmation{padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-top:20px}
+.clinic-document-settings .clinic-confirm{display:flex;flex-direction:row;align-items:flex-start;gap:10px;font-size:calc(13px*var(--fs,1));line-height:1.6;cursor:pointer}
+.clinic-document-settings .clinic-confirm input{width:18px;height:18px;flex:0 0 18px;margin:2px 0 0;padding:0;accent-color:#285aa5}
+.clinic-confirm small{display:block;font-size:calc(11px*var(--fs,1));color:#52647e;margin-top:4px}
+.clinic-document-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid #e2e8f0;margin-top:24px;padding-top:20px}
+.clinic-document-actions>span{font-size:calc(12px*var(--fs,1));color:#854d0e}.clinic-document-actions .btn{white-space:normal}
+.clinic-document-error{background:#fff4f4;border-color:#f0c4c7;color:#a42c32}.clinic-document-success{background:#effaf4;border-color:#b7dfcb;color:#166534}
+@media(max-width:640px){.clinic-document-settings{padding:18px}.clinic-document-heading h2{font-size:calc(19px*var(--fs,1))}.clinic-document-grid{grid-template-columns:minmax(0,1fr)}.clinic-document-actions .btn{width:100%}}
+
+/* Restore the blue and gold booklet in both owner and staff views. */
+.vet-card-face-controls{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 14px}.vet-card-face-controls>span{font-size:calc(12px*var(--fs,1));color:#52647e;text-transform:uppercase;letter-spacing:.08em}
+.digital-vet-card .vc-flip-stage{perspective:1800px;width:100%}
+.digital-vet-card .vc-flip-card{position:relative;display:block;width:100%;min-height:0;transform-style:preserve-3d;transition:transform .7s ease;border-radius:20px}
+.digital-vet-card .vc-flip-card.is-flipped{transform:rotateY(180deg)}
+.digital-vet-card :is(.vc-page-front,.vc-page-back){position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;border:1px solid #cbd5e1;border-radius:20px;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 12px 32px #0f172a18;overflow:hidden;background:#fff;pointer-events:none;box-sizing:border-box}
+.digital-vet-card .vc-page-back{transform:rotateY(180deg);background:#f8fafc}.digital-vet-card .is-active{position:relative;inset:auto;height:auto;pointer-events:auto}
+.digital-vet-card .vc-booklet-spine{position:absolute;left:0;top:0;bottom:0;width:12px;background:linear-gradient(90deg,#0f172a20,transparent);pointer-events:none;z-index:1}
+.digital-vet-card .vc-passport-header{background:linear-gradient(135deg,#0f172a,#1e3a8a,#1e40af);padding:24px 28px;color:#fff;border-bottom:3px solid #eeb94d}.digital-vet-card .vc-passport-header small{color:#dbeafe;font-size:calc(11px*var(--fs,1));letter-spacing:.08em}.digital-vet-card .vc-passport-header h4{color:#fff;font-size:calc(23px*var(--fs,1));margin:9px 0 14px}
+.digital-vet-card .vc-passport-stamp{display:inline-block;border:1px dashed #eeb94d;border-radius:6px;padding:6px 9px;color:#ffe4a2;background:#eeb94d12;font-size:calc(11px*var(--fs,1));text-transform:uppercase;letter-spacing:.05em}
+.vet-card-profile-body,.vet-card-history-body{padding:26px;min-width:0;overflow-wrap:anywhere}.vet-card-profile-title{display:flex;align-items:center;gap:24px}.vet-card-profile-title h4{font-size:calc(28px*var(--fs,1));margin:0 0 6px;color:#1e3a8a}.vet-card-profile-title p{margin:6px 0}.vet-card-profile-title small{font-size:calc(11px*var(--fs,1));color:#52647e;line-height:1.8}.vet-card-profile-title .pet-portrait{flex-shrink:0;margin:0}
+.vet-card-patient-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;border-top:1px solid #dbe4f0;border-bottom:1px solid #dbe4f0;padding:22px 0;margin:24px 0}.vet-card-patient-fields dt{font-size:calc(11px*var(--fs,1));text-transform:uppercase;color:#52647e;letter-spacing:.05em}.vet-card-patient-fields dd{margin:5px 0 0;font-weight:600}.vet-card-profile-body address{font-size:calc(12px*var(--fs,1));font-style:normal;line-height:1.8;color:#52647e}
+.vet-card-document-meta,.vet-card-publication-note{margin-top:20px;padding:14px;background:#fffbeb;border:1px solid #f1d58b;border-radius:9px;font-size:calc(12px*var(--fs,1));line-height:1.8}.vet-card-document-meta b{color:#1e3a8a}
+@media(prefers-reduced-motion:reduce){.digital-vet-card .vc-flip-card{transition:none}}
+@media(max-width:600px){.vet-card-profile-body,.vet-card-history-body{padding:16px}.digital-vet-card .vc-passport-header{padding:20px}.vet-card-profile-title{flex-wrap:wrap;gap:14px}.vet-card-patient-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.vet-card-face-controls .btn{width:100%}}
+
+.vet-card-next-care{margin:18px 0;padding:18px;border:1px solid #b8d4f5;border-radius:12px;background:#f0f7ff;color:#183153}
+.vet-card-next-care h4{margin:0 0 12px}.vet-card-next-care article+article{border-top:1px solid #cbdcf0;margin-top:14px;padding-top:14px}
+.vet-card-next-care h5{font-size:calc(15px*var(--fs,1));margin:0 0 8px}.vet-card-next-care p{margin:6px 0;line-height:1.6}.vet-card-next-care small{display:block;margin-top:14px;line-height:1.6}
+
+/* Card summary, colour-coded records and a card that keeps its colours on paper. */
+.vc-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0 4px}
+.vc-summary>div{position:relative;border:1px solid #dbe4f0;border-radius:12px;padding:12px 14px 12px 18px;background:#fff;overflow:hidden}
+.vc-summary>div::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:#2563eb}
+.vc-summary .is-deworming::before{background:#d97706}.vc-summary .is-weight::before{background:#059669}
+.vc-summary .is-next::before{background:#eeb94d}.vc-summary .is-next.is-overdue::before{background:#dc2626}.vc-summary .is-next.is-ok::before{background:#16a34a}
+.vc-summary dt{font-size:calc(11px*var(--fs,1));font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#52647e}
+.vc-summary dd{margin:4px 0 0;font-size:calc(20px*var(--fs,1));font-weight:800;color:#0f2a5c;overflow-wrap:anywhere}
+.vc-summary small{display:block;margin-top:2px;color:#52647e;font-size:calc(11.5px*var(--fs,1))}
+.vc-section{margin:20px 0}.vc-section>h4{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:#0f2a5c;font-size:calc(15px*var(--fs,1))}
+.vc-section>h4::before{content:"";width:5px;height:18px;border-radius:3px;background:#2563eb}
+.vc-section.is-deworming>h4::before{background:#d97706}.vc-section.is-weight>h4::before{background:#059669}
+.vc-count{font-size:calc(11px*var(--fs,1));font-weight:700;padding:2px 8px;border-radius:99px;background:#e5edfb;color:#1e40af}
+.vet-card-event{background:#fff;box-shadow:0 1px 2px rgba(15,42,92,.05);break-inside:avoid}
+.vet-card-event.is-deworming{border-left-color:#d97706}.vet-card-event.is-weight{border-left-color:#059669}
+.vet-card-event header strong{color:#0f2a5c;font-size:calc(15px*var(--fs,1))}
+.vet-card-event time{background:#eef3fb;border-radius:99px;padding:3px 10px;font-weight:600;color:#1e3a8a}
+.vet-card-event .vet-card-patient-fields{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 18px;padding:12px 0;margin:10px 0}
+.vc-due{display:inline-block;margin:8px 0 0;padding:4px 11px;border-radius:99px;font-size:calc(12px*var(--fs,1));border:1px solid transparent}
+.vc-due.is-ok{background:#dcfce7;color:#166534;border-color:#bbf7d0}.vc-due.is-soon{background:#fef3c7;color:#92400e;border-color:#fde68a}.vc-due.is-overdue{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+.vet-card-signature{display:flex;align-items:flex-end;gap:10px;margin:8px 0 0;font-size:calc(12px*var(--fs,1));color:#52647e}
+.vc-sign-line{flex:1;max-width:260px;border-bottom:1px solid #64748b;height:1.4em}
+.vet-card-next-care article.vc-care{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:16px;row-gap:2px;align-items:center;margin:0 0 10px;padding:12px 14px 12px 18px;border:1px solid #cfe0f5;border-left:5px solid #2563eb;border-radius:10px;background:#fff}
+.vet-card-next-care article.vc-care+article.vc-care{border-top:1px solid #cfe0f5;margin-top:0;padding-top:12px}
+.vet-card-next-care .vc-care.is-overdue{border-left-color:#dc2626}.vet-card-next-care .vc-care.is-soon{border-left-color:#d97706}.vet-card-next-care .vc-care.is-ok{border-left-color:#16a34a}
+.vet-card-next-care .vc-care>*{grid-column:1}.vet-card-next-care .vc-care>button{grid-column:2;grid-row:1/4;align-self:center;width:auto;white-space:nowrap}
+.vet-card-next-care .vc-care h5{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0}.vet-card-next-care .vc-care p{margin:2px 0}
+.vc-chip{font-size:calc(11px*var(--fs,1));font-weight:700;padding:2px 9px;border-radius:99px;border:1px solid transparent}
+.vc-chip.is-ok{background:#dcfce7;color:#166534;border-color:#bbf7d0}.vc-chip.is-soon{background:#fef3c7;color:#92400e;border-color:#fde68a}.vc-chip.is-overdue{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+@media(max-width:560px){.vet-card-next-care .vc-care{grid-template-columns:1fr}.vet-card-next-care .vc-care>button{grid-column:1;grid-row:auto;margin-top:8px;width:100%}}
+@media print{
+ @page{size:A4;margin:12mm}
+ /* Keep the booklet colours when someone prints the screen card with Ctrl+P. The server PDF is the official copy. */
+ body #root .digital-vet-card,body #root .digital-vet-card *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+ body #root .digital-vet-card .vc-passport-header{background:#0f2a5c!important;border-bottom:3px solid #eeb94d!important}
+ body #root .digital-vet-card .vc-passport-header,body #root .digital-vet-card .vc-passport-header *{color:#fff!important}
+ body #root .digital-vet-card .vc-passport-header small{color:#dbeafe!important}
+ body #root .digital-vet-card .vc-passport-stamp{border:1px dashed #eeb94d!important;color:#ffe4a2!important}
+ body #root .digital-vet-card .vc-summary>div{background:#f8fafc!important;border:1px solid #cbd5e1!important}
+ body #root .digital-vet-card .vc-summary>div::before{display:block!important;background:#2563eb!important}
+ body #root .digital-vet-card .vc-summary .is-deworming::before{background:#d97706!important}
+ body #root .digital-vet-card .vc-summary .is-weight::before{background:#059669!important}
+ body #root .digital-vet-card .vc-summary .is-next::before{background:#eeb94d!important}
+ body #root .digital-vet-card .vet-card-event{border:1px solid #cbd5e1!important;border-left:4px solid #2563eb!important;break-inside:avoid}
+ body #root .digital-vet-card .vet-card-event.is-deworming{border-left-color:#d97706!important}
+ body #root .digital-vet-card .vet-card-event.is-weight{border-left-color:#059669!important}
+ body #root .digital-vet-card .vc-due.is-ok{background:#dcfce7!important;color:#166534!important}
+ body #root .digital-vet-card .vc-due.is-soon{background:#fef3c7!important;color:#92400e!important}
+ body #root .digital-vet-card .vc-due.is-overdue{background:#fee2e2!important;color:#b91c1c!important}
+ body #root .digital-vet-card .vc-sign-line{border-bottom:1px solid #111!important}
+ body #root .digital-vet-card .vc-count{background:#e5edfb!important;color:#1e40af!important}
+}

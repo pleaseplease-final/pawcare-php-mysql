@@ -1,0 +1,9 @@
+/* Poppins for the whole system (landing, log in, every portal, popups). Needs an internet connection to load. */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+
+:root{--font:"Poppins","Segoe UI",system-ui,-apple-system,sans-serif}
+html,body,button,input,select,textarea,.shell,.login,.lp,.lg,.w,.scrim,.modal,.toast{font-family:var(--font)}
+
+/* Poppins is wider than the old font, so base sizes come down a little to keep tables, menus and cards from wrapping. */
+.shell,.login{font-size:calc(14px*var(--fs,1));line-height:1.5}
+.lp,.w{font-size:calc(15px*var(--fs,1));line-height:1.55}

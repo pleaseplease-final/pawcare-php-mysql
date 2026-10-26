@@ -1,0 +1,269 @@
+/* PawCare landing + login photo redesign. Blue (#1e3a8a / #2563eb) and butter yellow (#ffe28a). Loaded after styles.css. */
+
+/* ---------- landing: hero ---------- */
+.w .whero{position:relative;overflow:hidden;background:linear-gradient(135deg,#fffbea 0%,#fff3c4 45%,#dbeafe 100%);padding-top:56px;padding-bottom:72px;gap:48px;grid-template-columns:1.05fr 1fr}
+.w .whero::before{content:"";position:absolute;width:520px;height:520px;right:-140px;top:-180px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.18),transparent 70%);pointer-events:none}
+.w .whero::after{content:"";position:absolute;width:380px;height:380px;left:-120px;bottom:-200px;border-radius:50%;background:radial-gradient(circle,rgba(255,226,138,.7),transparent 70%);pointer-events:none}
+.w .whero>*{position:relative;z-index:1}
+.w .whero h1{font-size:clamp(34px,4.8vw,58px);letter-spacing:-.02em}
+.w .whero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--butter) 62%);padding:0 4px}
+.w .whero p{font-size:calc(18px*var(--fs,1));max-width:520px}
+.w .wimg{background:none;min-height:0;padding:0;display:block;border-radius:0}
+.w .wimg .ph{position:relative;border-radius:36px;overflow:hidden;aspect-ratio:4/3.3;border:8px solid #fff;box-shadow:0 24px 60px rgba(30,58,138,.28)}
+.w .wimg .ph img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .8s ease}
+.w .wimg:hover .ph img{transform:scale(1.04)}
+.w .wimg .ph::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,rgba(30,58,138,.35))}
+.w .wimg .tag{position:absolute;z-index:2;background:#fff;color:var(--navy);padding:9px 15px;border-radius:16px;font-size:calc(13px*var(--fs,1));font-weight:700;box-shadow:0 10px 26px rgba(30,58,138,.22);display:flex;align-items:center;gap:8px}
+.w .wimg .tag i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--butter);color:var(--navy);font-style:normal}
+.w .wimg .t1{left:-22px;bottom:42px}
+.w .wimg .t2{right:-16px;top:34px}
+.w .wimg .t3{right:26px;bottom:-18px;background:var(--navy);color:#fff}
+.w .wimg .t3 i{background:var(--butter)}
+.w .wimg .dots{position:absolute;z-index:0;left:-26px;top:-26px;width:120px;height:120px;background-image:radial-gradient(var(--butter) 3px,transparent 3px);background-size:18px 18px}
+
+/* ---------- landing: trust numbers ---------- */
+.wstats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:-34px;position:relative;z-index:3}
+.wstats>div{background:#fff;border-radius:22px;padding:18px 20px;border:2px solid var(--ln);box-shadow:0 10px 26px rgba(30,58,138,.1);text-align:center}
+.wstats b{display:block;font-size:calc(30px*var(--fs,1));color:var(--navy);line-height:1.1}
+.wstats span{font-size:calc(13px*var(--fs,1));color:var(--mu);font-weight:600}
+.wstats>div:nth-child(odd){border-bottom:5px solid var(--butter)}
+.wstats>div:nth-child(even){border-bottom:5px solid var(--blue)}
+
+/* ---------- landing: care split section with photo ---------- */
+.wsplit{display:grid;grid-template-columns:1fr 1.1fr;gap:48px;align-items:center;padding-top:64px;padding-bottom:24px}
+.wsplit .ph{position:relative;border-radius:32px;overflow:hidden;aspect-ratio:4/3.4;box-shadow:0 20px 50px rgba(30,58,138,.22);border:8px solid #fff;outline:3px solid var(--butter)}
+.wsplit .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.wsplit h2{margin:0 0 12px;color:var(--navy);font-size:clamp(26px,3vw,36px);line-height:1.15}
+.wsplit>div>p{color:var(--mu);font-size:calc(16px*var(--fs,1));margin:0 0 20px;max-width:520px}
+.wsplit ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.wsplit li{display:flex;gap:12px;align-items:flex-start;background:#fff;border:2px solid var(--ln);border-radius:18px;padding:12px 16px}
+.wsplit li .ck{flex:none;width:30px;height:30px;border-radius:50%;background:var(--butter);color:var(--navy);display:grid;place-items:center}
+.wsplit li b{display:block;color:var(--navy);font-size:calc(15px*var(--fs,1))}
+.wsplit li small{color:var(--mu);font-size:calc(13px*var(--fs,1))}
+
+/* ---------- landing: pet chips ---------- */
+.w .wpart span{background:#fff;border:2px solid var(--butter);transition:transform .2s,background .2s}
+.w .wpart span:hover{transform:translateY(-3px);background:var(--sky)}
+
+/* ---------- landing: portals + cta ---------- */
+.w .fc{transition:transform .25s ease,box-shadow .25s ease}
+.w .fc:hover{transform:translateY(-4px);box-shadow:0 16px 36px rgba(30,58,138,.18)}
+.w .wcta{background:linear-gradient(105deg,rgba(30,58,138,.94) 0%,rgba(30,58,138,.82) 55%,rgba(37,99,235,.55) 100%),url("/images/hero-pets.jpg") center/cover;padding-top:56px;padding-bottom:56px}
+.w .wcta h2{font-size:clamp(26px,3vw,36px)}
+
+@media(max-width:860px){
+  .w .whero{grid-template-columns:1fr;padding-top:36px;padding-bottom:60px}
+  .w .wimg .t1{left:8px}.w .wimg .t2{right:8px}.w .wimg .t3{right:14px}
+  .wstats{grid-template-columns:1fr 1fr;margin-top:-24px}
+  .wsplit{grid-template-columns:1fr;gap:28px}
+}
+
+
+/* ---------- login + create account: blue hero panel with pets, white floating form card ---------- */
+.lg.auth.cardl{--cardw:460px;--pad:clamp(10px,2.2vw,28px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,var(--cardw));align-items:center;min-height:100vh;padding:var(--pad);box-sizing:border-box;background:linear-gradient(160deg,#fff3c4 0%,#ffe28a 100%)}
+.lg.auth.cardl.reg{--cardw:640px;grid-template-columns:minmax(0,1fr) minmax(0,var(--cardw))}
+
+/* blue panel spans the whole row, card floats over its right side */
+.lg.auth.cardl .lgl.photo{grid-column:1/-1;grid-row:1;align-self:stretch;position:relative;top:auto;height:auto;min-height:calc(100vh - 2*var(--pad));display:block;overflow:hidden;
+  border-radius:clamp(22px,3vw,36px);padding:clamp(24px,4vw,56px);padding-right:calc(var(--cardw) + clamp(24px,5vw,72px));
+  background:radial-gradient(circle at 12% 8%,rgba(255,226,138,.28),transparent 38%),linear-gradient(135deg,#2563eb 0%,#1e3a8a 100%);box-shadow:0 18px 50px rgba(30,58,138,.28)}
+.lg.auth.cardl .lgl.photo>*{max-width:none}
+.lg.auth.cardl .brandrow{display:inline-flex;align-items:center;gap:10px;background:#fff;padding:7px 16px 7px 9px;border-radius:99px;color:var(--navy);font-weight:800;font-size:calc(17px*var(--fs,1));box-shadow:0 6px 18px rgba(0,0,0,.16)}
+.lg.auth.cardl .cap{position:relative;z-index:2;margin-top:clamp(22px,6vh,64px);max-width:520px}
+.lg.auth.cardl .lgl.photo h1{color:#fff;font-size:clamp(30px,3.6vw,50px);line-height:1.1;margin:0 0 14px;letter-spacing:-.02em;max-width:none}
+.lg.auth.cardl .lgl.photo h1 em{font-style:normal;color:var(--butter)}
+.lg.auth.cardl .lgl.photo p{color:#dbe7ff;font-size:clamp(14px,1.3vw,17px);line-height:1.6;max-width:440px}
+.lg.auth.cardl .pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.lg.auth.cardl .pills span{display:inline-flex;align-items:center;gap:6px;background:var(--butter);color:var(--navy);font-weight:700;font-size:calc(12.5px*var(--fs,1));padding:6px 13px;border-radius:99px}
+/* pets photo anchored bottom-left of the panel, faded into the blue */
+.lg.auth.cardl .pic{position:absolute;left:0;bottom:0;z-index:1;width:calc(100% - var(--cardw) - clamp(8px,2vw,32px));height:clamp(220px,52%,520px);object-fit:cover;object-position:center 35%;display:block;
+  -webkit-mask-image:linear-gradient(to top,#000 62%,transparent);mask-image:linear-gradient(to top,#000 62%,transparent);pointer-events:none}
+
+/* the form card */
+.lg.auth.cardl form.lgr{grid-column:2;grid-row:1;z-index:3;position:relative;align-self:center;width:auto;max-width:none;margin:clamp(14px,3vh,32px) clamp(14px,3.2vw,44px) clamp(14px,3vh,32px) 0;padding:clamp(22px,3vw,38px);background:#fff;border-radius:clamp(20px,2.4vw,30px);box-shadow:0 26px 60px rgba(15,23,42,.28);box-sizing:border-box}
+.lg.auth.cardl form.lgr::before{display:none}
+.lg.auth.cardl form.lgr>*{max-width:none}
+.lg.auth.cardl form.lgr>button.lnk:first-child{color:var(--mu);margin-bottom:2px;padding:0}
+.lg.auth.cardl form.lgr h2{font-size:clamp(22px,2.2vw,28px);color:var(--navy);margin:6px 0 16px;padding-bottom:12px;position:relative}
+.lg.auth.cardl form.lgr h2::after{content:"";position:absolute;left:0;bottom:0;width:54px;height:5px;border-radius:99px;background:var(--butter)}
+.lg.auth.cardl .fld input,.lg.auth.cardl .fld select{background:#f6f9ff;border:2px solid #dbe4f7;transition:border-color .2s,box-shadow .2s,background .2s}
+.lg.auth.cardl .fld input:focus,.lg.auth.cardl .fld select:focus{outline:none;background:#fff;border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.14)}
+.lg.auth.cardl .fld input.bad{border-color:var(--er)}
+.lg.auth.cardl .btn.gold.wide,.lg.auth.cardl form.lgr>.btn.wide{background:linear-gradient(135deg,#ffe28a,#ffd24d);color:var(--navy);font-weight:800;border-radius:99px;box-shadow:0 8px 20px rgba(255,200,60,.5);transition:transform .15s,box-shadow .15s}
+.lg.auth.cardl .btn.gold.wide:hover,.lg.auth.cardl form.lgr>.btn.wide:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(255,200,60,.6)}
+.lg.auth.cardl .demo{background:#f4f8ff;border:1px dashed #b7c8ec;border-radius:16px}
+
+/* ---------- responsive ---------- */
+@media(max-width:1100px){
+  .lg.auth.cardl{--cardw:420px}
+  .lg.auth.cardl.reg{--cardw:560px}
+}
+@media(max-width:900px){
+  /* stacked: blue banner with pets on top, form card overlaps its lower edge */
+  .lg.auth.cardl,.lg.auth.cardl.reg{grid-template-columns:minmax(0,1fr);align-items:start;padding:var(--pad);gap:0}
+  .lg.auth.cardl .lgl.photo{grid-column:1;grid-row:1;min-height:0;padding:22px 22px 190px;border-radius:26px}
+  .lg.auth.cardl .cap{margin-top:16px;max-width:none}
+  .lg.auth.cardl .pills{display:none}
+  .lg.auth.cardl .pic{width:100%;height:170px;object-position:center 30%}
+  .lg.auth.cardl form.lgr{grid-column:1;grid-row:2;margin:-56px clamp(8px,3vw,24px) 12px;align-self:start}
+}
+@media(max-width:480px){
+  .lg.auth.cardl .lgl.photo{padding:16px 16px 150px}
+  .lg.auth.cardl .pic{height:140px}
+  .lg.auth.cardl .brandrow{font-size:calc(15px*var(--fs,1))}
+  .lg.auth.cardl form.lgr{margin:-48px 4px 10px;padding:20px 16px}
+  .lg.auth.cardl .auth-grid{grid-template-columns:1fr}
+}
+
+/* ---------- landing hero v2: blue panel + pets photo + floating portal card (matches login) ---------- */
+.w .whero{display:block;background:transparent;overflow:visible;padding-top:clamp(14px,2.4vw,28px);padding-bottom:clamp(40px,5vw,64px)}
+.w .whero::before,.w .whero::after{display:none}
+.w .hpanel{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:clamp(16px,3vw,40px);align-items:center;min-height:clamp(520px,74vh,680px);
+  border-radius:clamp(22px,3vw,40px);padding:clamp(24px,4.5vw,64px);padding-bottom:clamp(24px,4.5vw,64px);
+  background:radial-gradient(circle at 10% 8%,rgba(255,226,138,.3),transparent 40%),linear-gradient(135deg,#2563eb 0%,#1e3a8a 100%);box-shadow:0 22px 56px rgba(30,58,138,.28)}
+.w .hl{position:relative;z-index:2;max-width:620px}
+.w .hl .wbadge{background:var(--butter);color:var(--navy)}
+.w .hl h1{color:#fff;font-size:clamp(32px,4.6vw,60px);line-height:1.06;margin:0 0 16px;letter-spacing:-.02em}
+.w .hl h1 em{font-style:normal;color:var(--butter);background:none;padding:0}
+.w .hl p{color:#dbe7ff;font-size:clamp(15px,1.4vw,18px);max-width:520px;margin:0 0 22px}
+.w .hl .btn.ghost{background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.55)}
+.w .hl .btn.ghost:hover{background:#fff;color:var(--navy)}
+.w .hchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.w .hchips span{display:inline-flex;align-items:center;gap:6px;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);padding:6px 12px;border-radius:99px;font-size:calc(12.5px*var(--fs,1));font-weight:600}
+.w .hpic{position:absolute;left:0;bottom:0;z-index:1;width:min(58%,720px);height:clamp(190px,40%,330px);object-fit:cover;object-position:center 30%;
+  -webkit-mask-image:linear-gradient(to top,#000 55%,transparent);mask-image:linear-gradient(to top,#000 55%,transparent);pointer-events:none;opacity:.95}
+.w .hcard{position:relative;z-index:3;background:#fff;border-radius:clamp(20px,2.4vw,30px);padding:clamp(20px,2.6vw,30px);box-shadow:0 26px 60px rgba(15,23,42,.3)}
+.w .hcard h2{margin:0 0 4px;color:var(--navy);font-size:clamp(20px,2vw,26px);position:relative;padding-bottom:10px}
+.w .hcard h2::after{content:"";position:absolute;left:0;bottom:0;width:48px;height:5px;border-radius:99px;background:var(--butter)}
+.w .hcard>p{margin:8px 0 14px;color:var(--mu);font-size:calc(14px*var(--fs,1))}
+.w .hroles{display:grid;gap:10px;margin-bottom:16px}
+.w .hroles button{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;background:#f6f9ff;border:2px solid #dbe4f7;border-radius:16px;padding:11px 14px;cursor:pointer;color:var(--navy);font:inherit;transition:transform .15s,border-color .15s,background .15s}
+.w .hroles button:hover{transform:translateX(3px);border-color:var(--blue);background:#fff}
+.w .hroles button b{display:block;font-size:calc(14.5px*var(--fs,1))}
+.w .hroles button small{display:block;color:var(--mu);font-size:calc(12px*var(--fs,1));margin-top:1px}
+.w .hroles button svg{flex:none;color:var(--blue)}
+.w .hcard .btn.wide{width:100%;border-radius:99px}
+.wstats{margin-top:clamp(14px,2vw,22px)}
+
+@media(max-width:900px){
+  .w .hpanel{grid-template-columns:minmax(0,1fr);min-height:0;padding:22px 20px 0}
+  .w .hl{max-width:none}
+  .w .hpic{position:relative;order:2;width:calc(100% + 40px);margin:0 -20px;height:200px;left:auto}
+  .w .hcard{order:3;margin:-46px 0 20px}
+  .w .hchips{display:none}
+}
+@media(max-width:480px){
+  .w .hpanel{padding:18px 14px 0}
+  .w .hpic{width:calc(100% + 28px);margin:0 -14px;height:160px}
+  .w .hcard{padding:18px 14px}
+}
+
+/* ---------- auth v2: full-screen photo background, form card floats on top ---------- */
+.lg.auth.cardl{position:relative;padding:var(--pad);
+  background:linear-gradient(100deg,rgba(23,37,84,.88) 0%,rgba(30,58,138,.72) 38%,rgba(30,58,138,.18) 70%,rgba(255,226,138,.12) 100%),
+    url("/images/auth-bg.jpg") center/cover no-repeat,
+    url("/images/hero-pets.jpg") 30% center/cover no-repeat,
+    linear-gradient(135deg,#2563eb,#1e3a8a);
+  background-attachment:scroll,fixed,fixed,scroll}
+.lg.auth.cardl .lgl.photo{background:none;box-shadow:none;border-radius:0;overflow:visible;min-height:0;align-self:center;grid-column:1;padding:clamp(8px,3vw,48px);padding-right:clamp(16px,3vw,48px)}
+.lg.auth.cardl .pic{display:none}
+.lg.auth.cardl .cap{margin-top:clamp(28px,12vh,120px)}
+.lg.auth.cardl .lgl.photo h1{text-shadow:0 3px 18px rgba(0,0,0,.35)}
+.lg.auth.cardl .lgl.photo p{color:#eaf1ff;text-shadow:0 1px 10px rgba(0,0,0,.3)}
+.lg.auth.cardl form.lgr{grid-column:2;margin:0;backdrop-filter:blur(2px)}
+@media(max-width:1100px){.lg.auth.cardl form.lgr{margin:0}}
+@media(max-width:900px){
+  .lg.auth.cardl,.lg.auth.cardl.reg{background:linear-gradient(180deg,rgba(23,37,84,.86) 0%,rgba(30,58,138,.6) 45%,rgba(30,58,138,.35) 100%),url("/images/auth-bg.jpg") center/cover no-repeat,url("/images/hero-pets.jpg") 25% center/cover no-repeat,linear-gradient(135deg,#2563eb,#1e3a8a);background-attachment:scroll,fixed,fixed,scroll;align-items:start}
+  .lg.auth.cardl .lgl.photo{padding:14px 10px 4px}
+  .lg.auth.cardl .cap{margin-top:12px}
+  .lg.auth.cardl .lgl.photo p{display:none}
+  .lg.auth.cardl form.lgr{margin:14px 0 12px;grid-column:1;grid-row:2}
+}
+@media(max-width:480px){.lg.auth.cardl form.lgr{margin:10px 0}}
+
+/* ---------- auth v3: form card centered over the photo ---------- */
+.lg.auth.cardl,.lg.auth.cardl.reg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,2.6vh,26px);padding:clamp(16px,3vh,40px) var(--pad);
+  background:radial-gradient(ellipse at center,rgba(30,58,138,.28) 0%,rgba(23,37,84,.66) 100%),url("/images/auth-bg.jpg") center/cover no-repeat,url("/images/hero-pets.jpg") center/cover no-repeat,linear-gradient(135deg,#2563eb,#1e3a8a);
+  background-attachment:scroll,fixed,fixed,scroll}
+.lg.auth.cardl .lgl.photo{width:100%;max-width:640px;padding:0;text-align:center;display:flex;flex-direction:column;align-items:center;align-self:center}
+.lg.auth.cardl .cap{margin-top:12px;max-width:none}
+.lg.auth.cardl .lgl.photo h1{font-size:clamp(26px,3.2vw,42px);margin:0 0 8px}
+.lg.auth.cardl .lgl.photo p{display:block;margin:0 auto;font-size:clamp(14px,1.3vw,16px)}
+.lg.auth.cardl .pills{display:none}
+.lg.auth.cardl form.lgr{width:100%;max-width:var(--cardw);margin:0;grid-column:auto;grid-row:auto;align-self:center;background:rgba(255,255,255,.97)}
+.lg.auth.cardl.reg form.lgr{--cardw:680px}
+@media(max-width:900px){
+  .lg.auth.cardl,.lg.auth.cardl.reg{justify-content:flex-start;background:linear-gradient(180deg,rgba(23,37,84,.7),rgba(30,58,138,.5)),url("/images/auth-bg.jpg") center/cover no-repeat,url("/images/hero-pets.jpg") center/cover no-repeat,linear-gradient(135deg,#2563eb,#1e3a8a);background-attachment:scroll,fixed,fixed,scroll}
+  .lg.auth.cardl .lgl.photo p{display:none}
+  .lg.auth.cardl .lgl.photo h1{font-size:clamp(22px,6vw,30px)}
+}
+@media(max-height:760px) and (min-width:901px){.lg.auth.cardl .lgl.photo p{display:none}}
+
+/* ---------- Interactive Verify & 6-box OTP styling ---------- */
+.auth-verify-card{width:100%;max-width:520px;margin:0 auto;background:rgba(255,255,255,.98);border-radius:clamp(22px,3vw,32px);padding:clamp(24px,3.5vw,42px);box-shadow:0 26px 60px rgba(15,23,42,.32);box-sizing:border-box;text-align:center;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.8)}
+.auth-verify-card h2{font-size:clamp(22px,2.4vw,28px);color:var(--navy);margin:10px 0 8px;font-weight:800;letter-spacing:-.01em}
+.auth-verify-card .card-subtitle{color:var(--mu);font-size:calc(14px*var(--fs,1));line-height:1.55;margin:0 0 16px}
+
+/* Interactive step tracker */
+.verify-steps{display:flex;align-items:center;justify-content:center;gap:6px;margin:8px 0 20px;flex-wrap:wrap}
+.verify-step-pill{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:99px;font-size:calc(12px*var(--fs,1));font-weight:600;background:#f1f5f9;color:#64748b;transition:all .2s ease}
+.verify-step-pill.done{background:#ecfdf5;color:#059669;border:1px solid #a7f3d0}
+.verify-step-pill.active{background:#fffbeb;color:#b45309;border:1px solid #fde68a;box-shadow:0 2px 8px rgba(245,158,11,.2)}
+.verify-step-sep{color:#cbd5e1;font-size:calc(11px*var(--fs,1))}
+
+/* Email envelope badge */
+.envelope-badge-wrap{position:relative;width:80px;height:80px;margin:0 auto 14px;display:grid;place-items:center}
+.envelope-pulse-bg{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(255,226,138,.85),rgba(37,99,235,.2));animation:pulseRing 2.4s cubic-bezier(.4,0,.6,1) infinite}
+.envelope-icon-box{position:relative;z-index:2;width:66px;height:66px;border-radius:22px;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);color:#fff;display:grid;place-items:center;box-shadow:0 12px 26px rgba(30,58,138,.35)}
+.envelope-paw-tag{position:absolute;right:-4px;bottom:-4px;z-index:3;width:28px;height:28px;border-radius:50%;background:var(--butter);color:var(--navy);display:grid;place-items:center;font-size:calc(14px*var(--fs,1));box-shadow:0 4px 10px rgba(0,0,0,.15);border:2px solid #fff}
+
+@keyframes pulseRing{
+  0%{transform:scale(.92);opacity:.8}
+  50%{transform:scale(1.12);opacity:.4}
+  100%{transform:scale(.92);opacity:.8}
+}
+
+/* User email pill */
+.user-email-pill{display:inline-flex;align-items:center;gap:8px;background:#f8fafc;border:1.5px solid #dbeafe;padding:9px 18px;border-radius:14px;color:var(--navy);font-weight:700;font-size:calc(14px*var(--fs,1));margin:6px 0 16px;max-width:100%;word-break:break-all}
+.user-email-pill button{background:none;border:none;cursor:pointer;color:#3b82f6;display:inline-flex;align-items:center;padding:2px 4px;border-radius:6px;transition:background .15s}
+.user-email-pill button:hover{background:#e0e7ff;color:#1e3a8a}
+
+/* 1-click webmail buttons */
+.webmail-shortcuts{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0 20px;flex-wrap:wrap}
+.webmail-btn{display:inline-flex;align-items:center;gap:7px;background:#ffffff;border:1.5px solid #dbe4f7;color:var(--navy);padding:8px 14px;border-radius:12px;font-size:calc(13px*var(--fs,1));font-weight:600;text-decoration:none;transition:all .18s ease;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+.webmail-btn:hover{border-color:#2563eb;background:#eff6ff;transform:translateY(-1.5px);box-shadow:0 6px 14px rgba(37,99,235,.15);color:#1e40af}
+.webmail-btn svg{color:#2563eb}
+
+/* 6-box OTP layout */
+.otp-boxes-wrap{display:flex;align-items:center;justify-content:center;gap:8px;margin:22px 0 24px}
+.otp-digit-box{width:50px;height:58px;font-size:calc(26px*var(--fs,1));font-weight:800;font-family:inherit;text-align:center;color:var(--navy);background:#f8fafc;border:2.5px solid #dbe4f7;border-radius:14px;transition:all .18s ease;box-sizing:border-box;caret-color:#2563eb;padding:0}
+.otp-digit-box:focus{outline:none;background:#ffffff;border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.16);transform:translateY(-2px)}
+.otp-digit-box.filled{border-color:#3b82f6;background:#ffffff}
+.otp-digit-box.bad{border-color:#ef4444;background:#fff5f5;animation:otpShake .3s ease-in-out}
+.otp-divider{width:10px;height:3px;border-radius:99px;background:#cbd5e1;margin:0 2px}
+
+@keyframes otpShake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-4px)}
+  75%{transform:translateX(4px)}
+}
+
+@media(max-width:480px){
+  .otp-boxes-wrap{gap:5px}
+  .otp-digit-box{width:42px;height:52px;font-size:calc(22px*var(--fs,1));border-radius:10px}
+  .otp-divider{display:none}
+}
+
+/* Quick tips card */
+.verify-tips-box{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:16px;padding:12px 16px;margin:16px 0 20px;text-align:left;font-size:calc(12.5px*var(--fs,1));color:#64748b;line-height:1.55}
+.verify-tips-box b{color:var(--navy);display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:calc(13px*var(--fs,1))}
+.verify-tips-box ul{margin:0;padding-left:18px}
+.verify-tips-box li{margin-bottom:2px}
+
+/* Verifying loading screen */
+.verifying-pulse-logo{width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#ffe28a,#ffd24d);color:var(--navy);display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 12px 30px rgba(255,200,60,.4);animation:spinSlow 8s linear infinite}
+@keyframes spinSlow{
+  0%{transform:rotate(0deg)}
+  100%{transform:rotate(360deg)}
+}
+

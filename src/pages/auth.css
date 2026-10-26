@@ -1,0 +1,127 @@
+/* Sign-in pages (Register, Log in, Forgot password): one size scale, even spacing. The font itself comes from fonts.css. */
+
+/* ---------- font and size scale ---------- */
+.lg.auth{font-family:var(--font);font-size:calc(14px*var(--fs,1));line-height:1.5;letter-spacing:0;color:var(--ink);-webkit-font-smoothing:antialiased}
+.lg.auth .lgl h1{font-size:calc(30px*var(--fs,1));line-height:1.2;font-weight:700;margin:0}
+.lg.auth .lgl p{font-size:calc(15px*var(--fs,1));line-height:1.6;font-weight:400;margin:0}
+.lg.auth .lgr h2{font-size:calc(24px*var(--fs,1));line-height:1.25;font-weight:700;margin:8px 0 18px}
+.lg.auth .fld{margin-bottom:16px}
+.lg.auth .fld label{font-size:calc(13px*var(--fs,1));font-weight:600;line-height:1.4;margin-bottom:6px}
+.lg.auth input,.lg.auth select,.lg.auth textarea{font-size:calc(14px*var(--fs,1));line-height:1.4;padding:11px 14px;border-radius:12px}
+.lg.auth input[type=checkbox]{width:16px;height:16px;padding:0;margin:0;flex:none;accent-color:var(--blue)}
+.lg.auth .ow-hint,.lg.auth .err,.lg.auth .ow-req,.lg.auth .ow-count,.lg.auth .okm{font-size:calc(12px*var(--fs,1));line-height:1.4}
+.lg.auth .ow-hint,.lg.auth .err{margin-top:5px}
+.lg.auth .ow-hint:empty,.lg.auth .err:empty{margin:0}      /* empty hint lines take no space */
+.lg.auth .btn{font-size:calc(14px*var(--fs,1));font-weight:600;padding:12px 18px;border-radius:12px}
+.lg.auth .btn.sm{font-size:calc(12.5px*var(--fs,1));padding:6px 12px}
+.lg.auth .lnk{font-size:calc(13px*var(--fs,1));font-weight:500;line-height:1.4}
+.lg.auth .lnk:hover{text-decoration:underline}
+.lg.auth .chk{font-size:calc(13px*var(--fs,1));line-height:1.4;gap:8px;margin:0;align-items:center}
+
+/* ---------- left banner: text and icons share one width, one left edge ---------- */
+.lg.auth .lgl{position:sticky;top:0;height:100vh;align-self:start;padding:0 6vw;gap:14px;align-items:flex-start}
+.lg.auth .lgl>*{max-width:420px}
+.lg.auth .lgl .lart{width:100%}
+.lg.auth .lgl .lart.sm{gap:12px;margin-top:6px}
+.lg.auth .lgl .lart.sm span{padding:12px 8px}
+
+/* ---------- right side: the form sits in the middle of its half ---------- */
+.lg.auth .lgr{max-width:none;width:100%;margin:0;padding:6vh clamp(24px,5vw,80px);box-sizing:border-box}
+.lg.reg{grid-template-columns:4fr 8fr}
+.lg.reg .lgl{padding:0 40px}
+.lg.reg .lgr{max-width:none;padding:4vh clamp(24px,5vw,80px)}
+.lg.reg .lgr h2{margin:6px 0 14px}
+.lg.reg .fld{margin-bottom:14px}
+.lg.reg .ow-req{grid-template-columns:repeat(3,auto);justify-content:start;gap:3px 22px;margin:0 0 12px}
+@media(max-width:820px){
+  .lg.auth .lgl{position:static;height:auto;padding:28px 6vw}
+  .lg.reg{grid-template-columns:1fr}
+  .lg.reg .lgl{padding:28px 6vw}
+  .lg.reg .ow-req{grid-template-columns:1fr 1fr}
+  .lg.auth .lgr,.lg.reg .lgr{padding:24px 6vw;max-width:none}
+}
+
+/* ---------- form pieces ---------- */
+.auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.auth-grid .full{grid-column:1/-1}
+@media(max-width:620px){.auth-grid{grid-template-columns:1fr}}
+.auth-note{background:#eef3ff;border:1px solid #d3ddf2;color:#1e3a8a;border-radius:12px;padding:10px 14px;font-size:calc(12.5px*var(--fs,1));line-height:1.5;margin:0 0 18px}
+.auth-agree{display:flex;gap:10px;align-items:flex-start;font-size:calc(13px*var(--fs,1));line-height:1.5}
+.auth-agree input{margin-top:3px}
+
+/* password checklist and strength bar, then clear space before the next field */
+.lg.auth .ow-req{margin:10px 0 14px;display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
+@media(max-width:420px){.lg.auth .ow-req{grid-template-columns:1fr}}
+.lg.auth .ow-meter{margin:0 0 6px}
+.lg.auth .ow-meter+.ow-hint{display:block;margin:0 0 16px}
+.pw-block{margin-bottom:16px}
+.pw-block .ow-req{margin-bottom:12px}
+
+/* "Show password" on the left, "Forgot password?" on the right */
+.auth-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:-4px 0 18px}
+
+/* buttons and the lines under them */
+.lg.auth form>.btn.wide{margin-top:4px}
+.auth-alt,.auth-links{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:6px;margin:18px 0 0;font-size:calc(13px*var(--fs,1));line-height:1.4;text-align:center}
+.auth-alt{display:block}
+.auth-fine{margin:8px 0 0;font-size:calc(12px*var(--fs,1));line-height:1.4;color:var(--mu);text-align:center}
+.lg.auth .demo{margin-top:22px;padding:14px}
+.lg.auth .demo p{font-size:calc(12px*var(--fs,1));margin:0 0 10px}
+.lg.auth .chips .btn.sm{font-size:calc(12px*var(--fs,1))}
+.auth-ok{text-align:center;padding:10px 0}.auth-ok h2{margin:10px 0}
+.auth-dev{background:#fff8dc;border:1px dashed #d9b84a;border-radius:10px;padding:6px 10px;font-size:calc(12px*var(--fs,1));color:#5c4a00;margin:0 0 14px}
+
+/* ---------- verification, mobile code, unlock countdown ---------- */
+.auth-note.bad{background:#fdecec;border-color:#f3c4c4;color:#8a1f1f}
+.auth-count{font-size:calc(44px*var(--fs,1));font-weight:700;line-height:1.1;letter-spacing:.04em;font-variant-numeric:tabular-nums;margin:6px 0 10px;color:var(--ink)}
+.lg.auth .lgr.auth-ok{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;max-width:none}
+.lg.auth .lgr.auth-ok p{max-width:420px;margin:0}
+.lg.auth .lgr.auth-ok .btn.wide{max-width:320px;width:100%}
+.otp-field input{font-size:calc(22px*var(--fs,1));font-weight:600;letter-spacing:.5em;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ---------- dev inbox (mock email / SMS), bottom-right ---------- */
+.devbox{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:#fff8dc;border:1px dashed #d9b84a;border-radius:12px;padding:10px 12px;color:#5c4a00;font-size:calc(12px*var(--fs,1));line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.devbox header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.devbox header button{background:none;border:0;color:#5c4a00;text-decoration:underline;cursor:pointer;font-size:calc(12px*var(--fs,1));padding:0 0 0 8px}
+.devbox .devnote{margin:6px 0 8px}
+.devbox ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.devbox li{border-top:1px solid #e6d58a;padding-top:8px;display:grid;gap:4px}
+.devbox li small{opacity:.75}
+.devbox pre{white-space:pre-wrap;word-break:break-word;font:inherit;margin:0}
+.devbox .btn.sm{justify-self:start}
+
+
+/* ---------- Reference registration & form matching styles ---------- */
+.sec{grid-column:1/-1;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;font-size:calc(12px*var(--fs,1));font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1e3a8a}
+.combo{position:relative}
+.cbl{position:absolute;z-index:100;left:0;right:0;top:100%;max-height:220px;overflow:auto;margin:4px 0 0;padding:4px 0;list-style:none;background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 25px -5px rgba(0,0,0,.15),0 8px 10px -6px rgba(0,0,0,.1)}
+.cbl li{padding:8px 14px;cursor:pointer;font-size:calc(13.5px*var(--fs,1));font-weight:400;color:var(--ink)}
+.cbl li.on,.cbl li:hover{background:#f1f5f9;color:#1e3a8a}
+.cbl li.no{color:#94a3b8;cursor:default;font-style:italic}
+.pw{position:relative}
+.pw input{padding-right:42px;width:100%;box-sizing:border-box}
+.eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:28px;height:28px;padding:0;background:none;border:none;color:#64748b;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:6px}
+.eye:hover{color:#1e3a8a}
+.eye svg{width:18px;height:18px}
+.meter{height:6px;margin-top:8px;border-radius:3px;background:#e2e8f0;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:#ef4444;transition:width .25s ease,background .25s ease}
+.rules{display:flex;flex-wrap:wrap;gap:4px 14px;list-style:none;margin:8px 0 0;padding:0;font-size:calc(12px*var(--fs,1));color:#64748b}
+.rules li::before{content:'○ '}
+.rules li.met{color:#16a34a;font-weight:500}
+.rules li.met::before{content:'✓ '}
+.sug{margin-top:12px;padding:12px 14px;border:1px dashed #3b82f6;border-radius:10px;background:#eff6ff}
+.sug small{display:block;margin-bottom:8px;font-size:calc(12px*var(--fs,1));color:#1e40af;line-height:1.4}
+.sug .row{display:flex;align-items:center;gap:10px}
+.sug code{flex:1;font:600 13px ui-monospace,Menlo,Consolas,monospace;word-break:break-all;background:#ffffff;padding:6px 10px;border-radius:8px;border:1px solid #bfdbfe;color:#1e3a8a}
+.sug button{flex:none}
+.btn.ghost{background:transparent;border:1px solid #cbd5e1;color:#1e3a8a}
+.btn.ghost:hover{background:#f8fafc;border-color:#94a3b8}
+.hint.warn{color:#d97706;font-size:calc(12px*var(--fs,1));display:block;margin-top:4px}
+input.bad,select.bad{border-color:#ef4444 !important;background-color:#fff5f5}
+input.ok,select.ok{border-color:#22c55e !important}
+.tc{text-transform:capitalize}
+.row.mobile-input{display:flex;gap:8px;align-items:center}
+.row.mobile-input .pre{flex:none;font-weight:600;font-size:calc(14px*var(--fs,1));color:#475569;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:12px;padding:11px 14px}
+.row.mobile-input input{flex:1}
+
+
