@@ -167,7 +167,7 @@ test('medicine orders and actual events enforce clinical roles, snapshots, priva
   for(const role of ['owner','assistant','admin','other-vet'])assert.equal((await call(role,'POST',`${path}/order`,body)).status,403,role);
   assert.equal((await call('vet','POST',`${path}/order`,body)).status,200);
   assert.equal((await call('vet','POST',`${path}/order`,body)).status,200);
-  assert.equal((await call('vet','POST',`${path}/order`,{...body,dose:'Conflicting dose'})).status,409);
+  assert.equal((await call('vet','POST',`${path}/order`,{...body,dose:'9 conflicting units'})).status,409);
   const event=medicineEvent(1,body.requestId.toUpperCase(),{dose:'Forged dose',medicine:'Forged medicine'});
   assert.equal((await call('owner','POST',`${path}/medication`,event)).status,403);
   assert.equal((await call('other-vet','POST',`${path}/medication`,event)).status,403);

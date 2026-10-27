@@ -2,6 +2,7 @@ import {intakeReasonError} from './intakeVisit.js';
 import {admissionChoiceErrors} from './admissionTemplates.js';
 import {vitalValueError} from './vitalValidation.js';
 import { consentErrors } from './admissionCare.js';
+import { medicineNameError, doseError, LIMITS } from './medicineOrder.js';
 const text = (value,label,max,required=false) => !String(value ?? '').trim() && required ? `${label} is required.` : String(value ?? '').length > max ? `Use at most ${max.toLocaleString()} characters.` : '';
 export const numberError = (value,label,min,max,{required=true,integer=false}={}) => {
   if (String(value ?? '').trim()==='') return required ? `Enter ${label.toLowerCase()}.` : '';
@@ -46,7 +47,11 @@ export function medicineEventTime(value) {
 export function medicineErrors(form,{action,admission,order,event,now=Date.now()}) {
   const errors={clinicalNote:text(form.clinicalNote,'Clinic observation / reason',3000,true),ownerUpdate:text(form.ownerUpdate,'Owner message',2000,!!event?.ownerUpdate)};
   if(action==='order') {
-    for (const [key,label,max] of [['medicine','Medicine name',200],['dose','Dose with units',200],['route','Route',100],['frequency','Frequency / schedule',200]]) errors[key]=text(form[key],label,max,true);
+    // The same rules the server applies: names in words, and a dose that is an amount plus its unit.
+    errors.medicine=medicineNameError(form.medicine,'Medicine name',LIMITS.medicine);
+    errors.dose=doseError(form.dose,'Dose with units');
+    errors.route=medicineNameError(form.route,'Route',LIMITS.route);
+    errors.frequency=medicineNameError(form.frequency,'Frequency / schedule',LIMITS.frequency);
     errors.instructions=text(form.instructions,'Medicine instructions',1000);
     if(form.catalogId) errors.supplyLimit=numberError(form.supplyLimit,'Authorized items/packages',1,1000,{integer:true});
   }

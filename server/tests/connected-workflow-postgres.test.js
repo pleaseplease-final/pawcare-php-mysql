@@ -71,7 +71,7 @@ test('booking → approval → check-in → consultation → billing → owner r
   const saved = await call('vet','POST','/consultations',note); assert.equal(saved.status,200,JSON.stringify(saved)); assert.equal(saved.data.appointment.status,'Completed');
   const unpaidCard=await call('owner','GET',`/pets/${visit.petId}/vet-card`);assert.ok(unpaidCard.data.document,'standard card does not require payment');assert.ok(!JSON.stringify(unpaidCard.data).includes('Private observation reason'));
   const orderId=crypto.randomUUID();
-  const order=await call('vet','POST',`/admissions/${admissionId}/order`,{requestId:orderId,revision:1,clinicalNote:'Private veterinarian order rationale',medicine:'Synthetic prescribed medicine',dose:'Vet-entered dose',route:'Vet-entered route',frequency:'Vet-entered schedule',catalogId:'srv_nexgard',supplyLimit:1});
+  const order=await call('vet','POST',`/admissions/${admissionId}/order`,{requestId:orderId,revision:1,clinicalNote:'Private veterinarian order rationale',medicine:'Synthetic prescribed medicine',dose:'1 vet-entered unit',route:'Vet-entered route',frequency:'Vet-entered schedule',catalogId:'srv_nexgard',supplyLimit:1});
   assert.equal(order.status,200,JSON.stringify(order));
   const given=await call('assistant','POST',`/admissions/${admissionId}/medication`,{requestId:crypto.randomUUID(),revision:2,orderId,result:'Given',occurredAt:(await query('SELECT clock_timestamp() now')).rows[0].now.toISOString(),billableQuantity:1,clinicalNote:'Private observed response',ownerUpdate:'The ordered medicine was given by clinic staff.'});
   assert.equal(given.status,200,JSON.stringify(given));

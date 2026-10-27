@@ -1,4 +1,5 @@
 import { TEMP_MIN, TEMP_MAX } from '../src/vitalValidation.js';
+import { medicineNameError, doseError, LIMITS } from '../src/medicineOrder.js';
 import {admissionChoiceErrors} from '../src/admissionTemplates.js';
 import {vitalValueError} from '../src/vitalValidation.js';
 import { readFileSync } from 'node:fs';
@@ -75,7 +76,15 @@ export function admissionInput(body, action, role) {
     }
   }
   if (action === 'order') {
-    for (const [field,max] of [['medicine',200],['dose',200],['route',100],['frequency',200]]) data[field] = text(body[field],field,max,true);
+    // Words for the medicine, route and schedule, and an amount plus unit for the dose: the same rules as the form.
+    for (const [field,max,label] of [['medicine',LIMITS.medicine,'Medicine name'],['route',LIMITS.route,'Route'],['frequency',LIMITS.frequency,'Frequency / schedule']]) {
+      const problem = medicineNameError(body[field],label,max);
+      if (problem) throw admissionError(problem);
+      data[field] = body[field].trim().replace(/\s{2,}/g,' ');
+    }
+    const doseProblem = doseError(body.dose,'Dose with units');
+    if (doseProblem) throw admissionError(doseProblem);
+    data.dose = body.dose.trim().replace(/\s{2,}/g,' ');
     data.instructions = text(body.instructions,'Medicine instructions',1000);
     data.catalogId = body.catalogId || null;
     data.supplyLimit = body.supplyLimit ?? 0;
