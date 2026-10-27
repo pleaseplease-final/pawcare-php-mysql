@@ -13,6 +13,11 @@ const fakeQuery = async (sql, params = []) => {
   calls.push({ sql, params });
   if (failSql && failSql.test(sql)) throw Error('synthetic database failure');
   const rows = value => ({ rows: structuredClone(value), rowCount: value.length });
+  // Duplicate-prevention lookups: one pet per owner, one open visit per pet, one payment reference per invoice, one dose per pet per day.
+  if (sql.startsWith('SELECT id, owner_id, name, species, birth FROM pets WHERE owner_id = $1')) return rows(db.pets.filter(p => p.owner_id === params[0]));
+  if (sql.startsWith('SELECT id, date, status FROM appointments WHERE pet_id=$1 AND id<>$2')) return rows(db.appts.filter(a => a.pet_id === params[0] && a.id !== params[1] && ['Checked-in', 'In consultation'].includes(a.status)));
+  if (sql.includes("billing_status = 'Paid' AND LOWER(TRIM(payment_details->>'reference'))")) return rows([]);
+  if (sql.startsWith('SELECT id FROM vaccinations WHERE pet_id = $1 AND done AND LOWER(vaccine)')) return rows(db.vaccs.filter(v => v.pet_id === params[0] && v.done && String(v.vaccine).toLowerCase() === String(params[1]).toLowerCase() && String(v.date).slice(0, 10) === String(params[2]).slice(0, 10)));
   if (sql.includes('FROM sessions s')) return rows(users[params[0]] ? [users[params[0]]] : []);
   if(sql==="SELECT version FROM pawcare_schema_migrations WHERE version='patient-reference-history-v1'")return rows([{version:'patient-reference-history-v1'}]);
   if(sql==="SELECT version FROM pawcare_schema_migrations WHERE version='digital-vet-card-v1'")return rows([{version:'digital-vet-card-v1'}]);

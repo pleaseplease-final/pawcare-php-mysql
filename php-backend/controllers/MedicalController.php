@@ -24,6 +24,10 @@ class MedicalController {
             WHERE 1=1
         ";
         $params = [];
+        if ($user['role'] === 'owner') {
+            $sql .= " AND p.owner_id = ?";
+            $params[] = $user['owner_id'] ?? '';
+        }
 
         if ($petId) {
             $sql .= " AND c.pet_id = ?";
@@ -92,6 +96,10 @@ class MedicalController {
             WHERE 1=1
         ";
         $params = [];
+        if ($user['role'] === 'owner') {
+            $sql .= " AND p.owner_id = ?";
+            $params[] = $user['owner_id'] ?? '';
+        }
 
         if ($petId) {
             $sql .= " AND v.pet_id = ?";

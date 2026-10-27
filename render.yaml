@@ -1,0 +1,33 @@
+# Render blueprint for the PHP + MySQL back end (console, reports and /api).
+# Secrets are not stored here: fill the values in the Render dashboard (Environment).
+services:
+  - type: web
+    name: pawcare-php
+    runtime: docker
+    dockerfilePath: ./php-backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DB_HOST
+        sync: false        # for example gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+      - key: DB_PORT
+        value: "4000"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: BREVO_API_KEY       # email codes (password recovery)
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: TEXTBEE_API_KEY     # text-message codes
+        sync: false
+      - key: TEXTBEE_DEVICE_ID
+        sync: false
+      - key: CORS_ORIGINS        # leave empty unless another website must call the API
+        value: ""

@@ -20,7 +20,11 @@ export default function Forgot({ onBack, go }) {
     [top, setTop] = useState(""),
     [cool, setCool] = useState(0),
     [show, setShow] = useState(false),
-    [srv, setSrv] = useState({});
+    [srv, setSrv] = useState({}),
+    [channels, setChannels] = useState([]),
+    [channel, setChannel] = useState("email"),
+    [sentTo, setSentTo] = useState(""),
+    [unregistered, setUnregistered] = useState(false);
 
   useEffect(() => {
     if (cool <= 0) return;
@@ -36,27 +40,50 @@ export default function Forgot({ onBack, go }) {
 
   const err = (k, eager) => f.show(k, eager) || srv[k] || "";
   const fail = (x) => {
+    setUnregistered(!!x.unregistered);
     if (x.offline) setTop(OFFLINE_MSG);
     else if (x.fields) setSrv(x.fields);
     else setTop(x.message || "Something went wrong. Please try again.");
   };
 
+  // Step 1: find the account and the ways a code can reach its owner.
+  const find = async (e) => {
+    e && e.preventDefault();
+    setTop("");
+    setUnregistered(false);
+    f.blur("identifier");
+    if (!emOk(v.identifier.trim()) || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try {
+      const r = await auth.forgotOptions(v.identifier.trim());
+      setChannels(r.channels || []);
+      setChannel((r.channels || [])[0]?.id || "email");
+      setStep("choose");
+    } catch (x) {
+      fail(x);
+    }
+    pending.current = false;
+    setBusy(false);
+  };
+
+  // Step 2: send the 6-digit code to the email or phone the user picked.
   const send = async (e) => {
     e && e.preventDefault();
     setTop("");
-    f.blur("identifier");
-    if (!emOk(v.identifier.trim()) || pending.current || cool > 0) return;
-    pending.current=true;
+    if (pending.current || cool > 0) return;
+    pending.current = true;
     setBusy(true);
     try {
-      const r = await auth.forgot(v.identifier.trim());
+      const r = await auth.forgot(v.identifier.trim(), channel);
+      setSentTo(r.message || "");
       setStep("reset");
       setCool(r.retryAfter || 60);
     } catch (x) {
-      if(x.status===429)setCool(60);
+      if (x.status === 429) setCool(60);
       fail(x);
     }
-    pending.current=false;
+    pending.current = false;
     setBusy(false);
   };
 
@@ -102,7 +129,7 @@ export default function Forgot({ onBack, go }) {
           </button>
         </div>
       ) : step === "ask" ? (
-        <form className="login-card auth-verify-card" onSubmit={send} noValidate style={{ textAlign: "left" }}>
+        <form className="login-card auth-verify-card" onSubmit={find} noValidate style={{ textAlign: "left" }}>
           <AuthBrand />
           <fieldset disabled={busy} style={{border:0,padding:0,margin:0,minWidth:0}}>
           <button type="button" className="lnk" onClick={onBack} style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginBottom: "8px" }}>
@@ -110,7 +137,7 @@ export default function Forgot({ onBack, go }) {
           </button>
           <h2 style={{ textAlign: "center", marginBottom: "6px" }}>Find your account</h2>
           <p className="card-subtitle" style={{ textAlign: "center" }}>
-            Enter your registered email to request a 6-digit recovery code.
+            Enter your registered email. Next you choose whether the 6-digit code arrives by email or text message.
           </p>
 
           <Field
@@ -128,9 +155,34 @@ export default function Forgot({ onBack, go }) {
           />
 
           {top && <p className="err" role="alert" style={{ margin: "10px 0" }}>{top}</p>}
+          {unregistered && <button type="button" className="btn ghost wide" onClick={() => go("register")} style={{ marginBottom: "8px" }}>Create an account</button>}
 
-          <button className="btn gold wide" disabled={busy || cool > 0} style={{ marginTop: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            {busy ? "Requesting code..." : cool > 0 ? `Try again in ${cool}s` : "Send me a 6-digit code"} <ArrowRight size={16} />
+          <button className="btn gold wide" disabled={busy} style={{ marginTop: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            {busy ? "Looking up your account..." : "Continue"} <ArrowRight size={16} />
+          </button>
+          </fieldset>
+        </form>
+      ) : step === "choose" ? (
+        <form className="login-card auth-verify-card" onSubmit={send} noValidate style={{ textAlign: "left" }}>
+          <AuthBrand />
+          <fieldset disabled={busy} style={{border:0,padding:0,margin:0,minWidth:0}}>
+          <button type="button" className="lnk" onClick={() => { setStep("ask"); setTop(""); }} style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginBottom: "8px" }}>
+            <ArrowLeft size={14} /> Use a different email
+          </button>
+          <h2 style={{ textAlign: "center", marginBottom: "6px" }}>Where should we send your code?</h2>
+          <p className="card-subtitle" style={{ textAlign: "center" }}>Account found for <b>{v.identifier}</b>. Choose how to receive your 6-digit code.</p>
+          <div role="radiogroup" aria-label="Send my code by" style={{ display: "grid", gap: "10px", margin: "16px 0" }}>
+            {channels.map((c) => (
+              <label key={c.id} className={`recovery-choice${channel === c.id ? " on" : ""}`}>
+                <input type="radio" name="recovery-channel" value={c.id} checked={channel === c.id} onChange={() => setChannel(c.id)} />
+                <span><b>{c.label}</b><small>{c.destination}</small></span>
+              </label>
+            ))}
+          </div>
+          {channels.length === 1 && <p className="ow-hint">Text message is offered only when a verified mobile number is on the account.</p>}
+          {top && <p className="err" role="alert" style={{ margin: "10px 0" }}>{top}</p>}
+          <button className="btn gold wide" disabled={busy || cool > 0} style={{ marginTop: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            {busy ? "Sending code..." : cool > 0 ? `Try again in ${cool}s` : `Send code by ${channel === "sms" ? "text message" : "email"}`} <ArrowRight size={16} />
           </button>
           </fieldset>
         </form>
@@ -142,16 +194,16 @@ export default function Forgot({ onBack, go }) {
             type="button"
             className="lnk"
             onClick={() => {
-              setStep("ask");
+              setStep("choose");
               setTop("");
             }}
             style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginBottom: "8px" }}
           >
-            <ArrowLeft size={14} /> Use a different account
+            <ArrowLeft size={14} /> Send it another way
           </button>
           <h2 style={{ textAlign: "center", marginBottom: "6px" }}>Enter 6-digit code</h2>
           <p className="card-subtitle" style={{ textAlign: "center" }}>
-            If an eligible account matches <b>{v.identifier}</b>, a code will arrive by email. Check your inbox and spam folder.
+            {sentTo || `A 6-digit code was sent for ${v.identifier}.`} Check your {channel === "sms" ? "messages" : "inbox and spam folder"}.
           </p>
 
 

@@ -76,6 +76,31 @@ class AuthMiddleware {
         return $user;
     }
 
+    /** Stops the request with 403 JSON. */
+    public static function forbid(string $message = 'You do not have access to this record.'): never {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $message]);
+        exit;
+    }
+
+    /** Pet owners may only touch their own owner record; clinic staff may touch any. */
+    public static function requireOwnerAccess(array $user, string $ownerId): void {
+        if ($user['role'] === 'owner' && ($user['owner_id'] ?? null) !== $ownerId) self::forbid();
+    }
+
+    /** Pet owners may only touch their own pets; clinic staff may touch any. 404 when the pet does not exist. */
+    public static function requirePetAccess(PDO $pdo, array $user, string $petId): void {
+        $stmt = $pdo->prepare('SELECT owner_id FROM pets WHERE id = ?');
+        $stmt->execute([$petId]);
+        $ownerId = $stmt->fetchColumn();
+        if ($ownerId === false) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Patient not found.']);
+            exit;
+        }
+        if ($user['role'] === 'owner' && ($user['owner_id'] ?? null) !== $ownerId) self::forbid();
+    }
+
     /**
      * Role-Based Access Control (RBAC) - checks allowed roles
      */

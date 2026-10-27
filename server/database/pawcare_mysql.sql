@@ -345,3 +345,14 @@ CREATE TABLE IF NOT EXISTS clinic_document_profile (
 INSERT INTO clinic_document_profile (id, details, verification_source) VALUES (1, '{}', '')
 ON DUPLICATE KEY UPDATE id=id;
 
+-- Password recovery codes (stored hashed; one active code per user)
+CREATE TABLE IF NOT EXISTS password_resets (
+  user_id VARCHAR(50) NOT NULL PRIMARY KEY,
+  code_hash CHAR(64) NOT NULL,
+  channel VARCHAR(10) NOT NULL DEFAULT 'email',
+  attempts INT NOT NULL DEFAULT 0,
+  sent TINYINT(1) NOT NULL DEFAULT 0,
+  consumed TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  expires_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

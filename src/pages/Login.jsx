@@ -39,12 +39,14 @@ export default function Login({ role, notice, bad, onLogin, onBack, go }) {
   const [resending,setResending]=useState(false);
   const sending=useRef(false);
   const [unver, setUnver] = useState(false);
+  const [unregistered, setUnregistered] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setTop("");
     setRv("");
     setUnver(false);
+    setUnregistered(false);
     f.submit(e);
     if (!f.valid || busy || loginWait>0 || unlockRetry>0) return;
     setBusy(true);
@@ -54,6 +56,7 @@ export default function Login({ role, notice, bad, onLogin, onBack, go }) {
       return;
     } catch (x) {
       setUnver(!!x.unverified);
+      setUnregistered(!!x.unregistered);
       setNeedsUnlock(!!x.unlockRequired);
       if(x.unlockRequired)setUnlockRetry(x.retryAfter || 60);
       if(x.cooldownUntil){setLoginWait(saveLoginCooldown(x.cooldownUntil));setHadCooldown(true);}
@@ -170,6 +173,7 @@ export default function Login({ role, notice, bad, onLogin, onBack, go }) {
             {top}
           </p>
         )}
+        {unregistered && <button type="button" className="btn ghost wide" onClick={() => go("register")}>Create an account</button>}
         {unver && <button type="button" className="lnk" disabled={resending || busy || cool>0} onClick={resend}>{resending?"Sending…":cool>0?`Resend email in ${cool}s`:"Resend verification email"}</button>}
         {rv && <p className="okm" role="status" style={{ color: "var(--ok, #16a34a)" }}>{rv}</p>}
 

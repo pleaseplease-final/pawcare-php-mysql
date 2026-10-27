@@ -30,6 +30,7 @@ export async function clinicRequest(method, path, body, options = {}) {
     error.cooldownUntil = data?.cooldownUntil;
     error.unlockRequired = data?.unlockRequired === true;
     error.unverified = data?.unverified === true;
+    error.unregistered = data?.unregistered === true;
     error.retryAfter = Number(data?.retryAfter || response.headers.get("Retry-After")) || 0;
     error.isApiError = true;
     throw error;

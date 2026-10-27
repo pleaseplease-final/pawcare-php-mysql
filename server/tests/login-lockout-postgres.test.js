@@ -24,10 +24,11 @@ async function user(role='owner'){
 }
 const login=(u,pass='WrongPassword!')=>call('/login',{email:u.email,password:pass});
 const token=message=>new URL(message.text.match(/https?:\/\/\S+/)[0]).searchParams.get('unlock');
-async function lock(u){mail=[];assert.equal((await login(u)).status,401);const result=await login(u);assert.equal(result.status,423);assert.equal(mail.length,1);return token(mail[0]);}
-for(const role of ['owner','assistant','vet','admin'])test(`${role}: two failures, one-time email link then enforced cooldown`,async()=>{
+async function lock(u){mail=[];assert.equal((await login(u)).status,401);assert.equal((await login(u)).status,401);const result=await login(u);assert.equal(result.status,423);assert.equal(mail.length,1);return token(mail[0]);}
+for(const role of ['owner','assistant','vet','admin'])test(`${role}: three failures, one-time email link then enforced cooldown`,async()=>{
  const u=await user(role);mail=[];
- const first=await login(u);assert.equal(first.status,401);assert.match(first.data.error,/one more incorrect/);assert.equal(mail.length,0);
+ const first=await login(u);assert.equal(first.status,401);assert.equal(first.data.attemptsRemaining,2);assert.match(first.data.error,/Attempt 1 of 3/);assert.equal(mail.length,0);
+ const middle=await login(u);assert.equal(middle.status,401);assert.match(middle.data.error,/one more incorrect/);assert.equal(mail.length,0);
  const second=await login(u);assert.equal(second.status,423);assert.equal(second.data.unlockEmailSent,true);assert.equal(mail[0].to,u.email);assert.equal(second.data.token,undefined);
  const raw=token(mail[0]);assert.notEqual((await query("SELECT token_hash FROM verification_tokens WHERE user_id=$1",[u.id])).rows[0].token_hash,raw);
  // Time alone cannot clear a lock that is waiting for the email link.
@@ -42,10 +43,10 @@ for(const role of ['owner','assistant','vet','admin'])test(`${role}: two failure
  const success=await login(u,password);assert.equal(success.status,200);assert.equal(success.data.user.id,u.id);
  const saved=(await query('SELECT * FROM users WHERE id=$1',[u.id])).rows[0];assert.equal(saved.failed_login_attempts,0);assert.equal(saved.is_locked,false);
 });
-test('concurrent failures count exactly twice and send one email; link consumes once',async()=>{
+test('concurrent failures count exactly three times and send one email; link consumes once',async()=>{
  const u=await user();mail=[];const results=await Promise.all(Array.from({length:5},()=>login(u)));
- assert.equal(results.filter(r=>r.status===401).length,1);assert.equal(results.filter(r=>r.status===423).length,4);assert.equal(mail.length,1);
- assert.equal((await query('SELECT failed_login_attempts FROM users WHERE id=$1',[u.id])).rows[0].failed_login_attempts,2);
+ assert.equal(results.filter(r=>r.status===401).length,2);assert.equal(results.filter(r=>r.status===423).length,3);assert.equal(mail.length,1);
+ assert.equal((await query('SELECT failed_login_attempts FROM users WHERE id=$1',[u.id])).rows[0].failed_login_attempts,3);
  const raw=token(mail[0]);const clicks=await Promise.all([call('/unlock',{token:raw}),call('/unlock',{token:raw})]);assert.deepEqual(clicks.map(c=>c.status).sort(),[200,400]);
 });
 test('invalid, expired, failed delivery and dev outbox links cannot unlock; resend is throttled',async()=>{
@@ -58,11 +59,11 @@ test('invalid, expired, failed delivery and dev outbox links cannot unlock; rese
  }
  assert.equal((await call('/unlock',{token:'invalid'})).status,400);
 });
-test('successful login resets the first failure; cooldown expiry starts a fresh two-attempt cycle',async()=>{
+test('successful login resets the first failure; cooldown expiry starts a fresh three-attempt cycle',async()=>{
  const u=await user();assert.equal((await login(u)).status,401);assert.equal((await login(u,password)).status,200);assert.equal((await login(u)).status,401);
- await login(u);const raw=token(mail.at(-1));await call('/unlock',{token:raw});await query("UPDATE users SET lockout_until=NOW()-INTERVAL '1 second' WHERE id=$1",[u.id]);
- const next=await login(u);assert.equal(next.status,401);assert.equal(next.data.attemptsRemaining,1);
+ await login(u);await login(u);const raw=token(mail.at(-1));await call('/unlock',{token:raw});await query("UPDATE users SET lockout_until=NOW()-INTERVAL '1 second' WHERE id=$1",[u.id]);
+ const next=await login(u);assert.equal(next.status,401);assert.equal(next.data.attemptsRemaining,2);
 });
-test('unknown accounts do not receive tokens or sessions',async()=>{
- mail=[];const result=await login({email:'missing@example.invalid'});assert.equal(result.status,401);assert.equal(mail.length,0);assert.equal(result.headers.get('set-cookie'),null);
+test('unregistered emails are told to create an account and receive no tokens or sessions',async()=>{
+ mail=[];const result=await login({email:'missing@example.invalid'});assert.equal(result.status,404);assert.equal(result.data.unregistered,true);assert.match(result.data.error,/create an account/i);assert.equal(mail.length,0);assert.equal(result.headers.get('set-cookie'),null);
 });

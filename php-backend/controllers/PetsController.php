@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
+require_once __DIR__ . '/../config/rules.php';
+
 class PetsController {
     /**
      * View & Search Pets (CRUD: Read / Search)
@@ -60,6 +62,7 @@ class PetsController {
     public static function show(string $id): void {
         $user = AuthMiddleware::requireAuth();
         $pdo = Database::getConnection();
+        AuthMiddleware::requirePetAccess($pdo, $user, $id);
 
         $stmt = $pdo->prepare("
             SELECT p.*, o.name AS owner_name, o.phone AS owner_phone, o.email AS owner_email
@@ -98,7 +101,7 @@ class PetsController {
      * Add New Patient (CRUD: Create)
      */
     public static function store(): void {
-        $user = AuthMiddleware::requireAuth();
+        $user = AuthMiddleware::requireRole(['admin', 'assistant', 'vet']);
         $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 
         $ownerId = $data['owner_id'] ?? ($user['role'] === 'owner' ? $user['owner_id'] : '');
@@ -112,19 +115,15 @@ class PetsController {
         $neutered = trim($data['neutered'] ?? 'Not sure');
         $notes = trim($data['notes'] ?? '');
 
-        // Server-side validation
-        $errors = [];
-        if (empty($name)) $errors['name'] = 'Pet name is required.';
-        if (empty($ownerId)) $errors['owner_id'] = 'Owner selection is required.';
-        if ($weight <= 0) $errors['weight'] = 'Weight must be greater than 0.';
-
+        // Server-side validation (formats, allowed values, plausible dates and duplicate pets)
+        $pdo = Database::getConnection();
+        $errors = Rules::pet($pdo, ['owner_id' => $ownerId, 'name' => $name, 'species' => $species, 'breed' => $breed, 'sex' => $sex, 'birth' => $birth,
+            'weight' => $data['weight'] ?? 5.0, 'neutered' => $neutered, 'color' => $color, 'notes' => $notes]);
         if (!empty($errors)) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Validation error', 'errors' => $errors]);
+            http_response_code(isset($errors['name']) && str_contains($errors['name'], 'already has') ? 409 : 422);
+            echo json_encode(['success' => false, 'error' => reset($errors), 'errors' => $errors]);
             return;
         }
-
-        $pdo = Database::getConnection();
         $petId = 'p_' . bin2hex(random_bytes(5));
         $cardId = 'VACC-' . date('Y') . '-' . rand(1000, 9999);
 
@@ -173,6 +172,21 @@ class PetsController {
         $notes = trim($data['notes'] ?? '');
 
         $pdo = Database::getConnection();
+        $owner = $pdo->prepare('SELECT owner_id FROM pets WHERE id = ?');
+        $owner->execute([$id]);
+        $ownerId = $owner->fetchColumn();
+        if ($ownerId === false) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Patient not found.']);
+            return;
+        }
+        $errors = Rules::pet($pdo, ['owner_id' => $ownerId, 'name' => $name, 'species' => $species, 'breed' => $breed, 'sex' => $sex, 'birth' => $birth,
+            'weight' => $data['weight'] ?? '', 'neutered' => $neutered, 'color' => $color, 'notes' => $notes], $id);
+        if (!empty($errors)) {
+            http_response_code(isset($errors['name']) && str_contains($errors['name'], 'already has') ? 409 : 422);
+            echo json_encode(['success' => false, 'error' => reset($errors), 'errors' => $errors]);
+            return;
+        }
         $stmt = $pdo->prepare("
             UPDATE pets 
             SET name = ?, species = ?, breed = ?, sex = ?, birth = ?, weight = ?, color = ?, neutered = ?, notes = ?

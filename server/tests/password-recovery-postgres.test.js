@@ -10,7 +10,7 @@ await admin.query(`CREATE SCHEMA ${schema}`);url.searchParams.set('options',`-c 
 const {query,pool}=await import('../db.js');await query(readFileSync(new URL('../database/schema.sql',import.meta.url),'utf8'));
 await query(readFileSync(new URL('../database/appointment-status.sql',import.meta.url),'utf8'));
 let messages=[],delivery='synthetic';
-mock.module('../services.js',{exports:{sendMail:async(to,subject,text)=>{messages.push({to,subject,text});if(delivery==='throw')throw Error('Synthetic provider failure');return{ok:delivery!=='failed',via:delivery};},sendSms:async()=>({ok:true,via:'synthetic'}),serverOutbox:[]}});
+mock.module('../services.js',{exports:{sendMail:async(to,subject,text)=>{messages.push({to,subject,text});if(delivery==='throw')throw Error('Synthetic provider failure');return{ok:delivery!=='failed',via:delivery};},sendSms:async(phone,text)=>{messages.push({to:phone,subject:'sms',text});return{ok:true,via:'synthetic'};},serverOutbox:[]}});
 const {sha256,hashPassword,verifyPassword}=await import('../security.js');
 const {default:app}=await import('../../api/index.js');
 const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
@@ -37,11 +37,20 @@ for(const role of ['owner','vet','assistant','admin'])test(`${role}: verified em
  assert.equal((await query('SELECT * FROM sessions WHERE user_id=$1',[u.id])).rows.length,0);assert.ok((await challenge(u)).consumed_at);assert.equal((await challenge(u)).code_hash,null);
  assert.equal((await reset(u,code)).status,400);assert.equal((await call('/login',{email:u.email,password:oldPassword})).status,401);assert.equal((await call('/login',{email:u.email,password:newPassword})).status,200);
 });
-test('unknown/unverified email gets the same receipt and durable cooldown without mail or disclosure',async()=>{
- const eligible=await user(),unknown={email:'missing@example.invalid'},unverified=await user('owner',{unverified:true});
- const good=await request(eligible);
- for(const u of [unknown,unverified]){const r=await request(u);assert.deepEqual(r.response.data,good.response.data);assert.equal(messages.length,0);assert.equal((await reset(u,'123456')).status,400);}
- for(const u of [eligible,unknown,unverified]){const r=await call('/forgot',{identifier:u.email});assert.equal(r.status,429);assert.equal(r.headers.get('retry-after'),'60');}
+test('unregistered or unverified emails are told to create an account; registered ones choose email or text message',async()=>{
+ const eligible=await user(),unverified=await user('owner',{unverified:true});messages=[];
+ for(const email of ['missing@example.invalid',unverified.email]){
+  for(const path of ['/forgot','/forgot/options']){const r=await call(path,{identifier:email});assert.equal(r.status,404);assert.equal(r.data.unregistered,true);assert.match(r.data.error,/create an account/i);}
+ }
+ assert.equal(messages.length,0);
+ const options=await call('/forgot/options',{identifier:eligible.email});assert.equal(options.status,200);assert.deepEqual(options.data.channels.map(c=>c.id),['email','sms']);
+ assert.ok(!JSON.stringify(options.data).includes(eligible.email),'destinations are masked');assert.ok(!JSON.stringify(options.data).includes('+639170000001'));
+ const bySms=await call('/forgot',{identifier:eligible.email,channel:'sms'});assert.equal(bySms.status,202);assert.equal(bySms.data.channel,'sms');assert.equal(messages[0].to,'+639170000001');assert.match(messages[0].text,/\d{6}/);
+ const again=await call('/forgot',{identifier:eligible.email,channel:'email'});assert.equal(again.status,429);assert.equal(again.headers.get('retry-after'),'60');
+ const noMobile=await user();await query('UPDATE users SET mobile_verified=false WHERE id=$1',[noMobile.id]);
+ assert.deepEqual((await call('/forgot/options',{identifier:noMobile.email})).data.channels.map(c=>c.id),['email']);
+ assert.equal((await call('/forgot',{identifier:noMobile.email,channel:'sms'})).status,400);
+ const byEmail=await call('/forgot',{identifier:noMobile.email,channel:'email'});assert.equal(byEmail.status,202);assert.equal(messages.at(-1).to,noMobile.email);
 });
 test('codes expire, are account-scoped and five concurrent wrong attempts remain durable',async()=>{
  const u=await user(),other=await user(),r=await request(u);await request(other);

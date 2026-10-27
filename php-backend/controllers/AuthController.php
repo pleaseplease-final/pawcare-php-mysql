@@ -11,7 +11,11 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
+require_once __DIR__ . '/../config/validator.php';
+
 class AuthController {
+    public const MAX_LOGIN_ATTEMPTS = 3;
+
     /**
      * User Login
      */
@@ -40,8 +44,8 @@ class AuthController {
         $user = $stmt->fetch();
 
         if (!$user) {
-            http_response_code(401);
-            echo json_encode(['success' => false, 'error' => 'Invalid email or password.']);
+            http_response_code(404);
+            echo json_encode(['success' => false, 'unregistered' => true, 'error' => 'No account is registered with this email. Please create an account.']);
             return;
         }
 
@@ -64,18 +68,20 @@ class AuthController {
         // 3. Verify Password using PHP password_verify()
         if (!password_verify($password, $user['password_hash'])) {
             $attempts = $user['failed_login_attempts'] + 1;
-            if ($attempts >= 5) {
+            if ($attempts >= self::MAX_LOGIN_ATTEMPTS) {
                 $lockUntil = date('Y-m-d H:i:s', strtotime('+15 minutes'));
                 $pdo->prepare("UPDATE users SET failed_login_attempts = ?, is_locked = 1, lockout_until = ? WHERE id = ?")
                     ->execute([$attempts, $lockUntil, $user['id']]);
                 http_response_code(423);
-                echo json_encode(['success' => false, 'error' => 'Too many failed attempts. Account locked for 15 minutes.']);
+                echo json_encode(['success' => false, 'error' => 'Account locked after ' . self::MAX_LOGIN_ATTEMPTS . ' incorrect attempts. Wait 15 minutes, or use Forgot password to reset it now.']);
                 return;
             } else {
                 $pdo->prepare("UPDATE users SET failed_login_attempts = ? WHERE id = ?")
                     ->execute([$attempts, $user['id']]);
+                $remaining = self::MAX_LOGIN_ATTEMPTS - $attempts;
                 http_response_code(401);
-                echo json_encode(['success' => false, 'error' => 'Invalid email or password.']);
+                echo json_encode(['success' => false, 'attemptsRemaining' => $remaining,
+                    'error' => "Invalid email or password. Attempt {$attempts} of " . self::MAX_LOGIN_ATTEMPTS . ". Your account will lock after " . ($remaining === 1 ? 'one more incorrect attempt.' : "{$remaining} more incorrect attempts.")]);
                 return;
             }
         }
@@ -135,8 +141,8 @@ class AuthController {
         if (empty($firstName)) $errors['first_name'] = 'First name is required.';
         if (empty($lastName)) $errors['last_name'] = 'Last name is required.';
         if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'A valid email is required.';
-        if (strlen($password) < 8) $errors['password'] = 'Password must be at least 8 characters.';
-        if (empty($mobile)) $errors['mobile_number'] = 'Mobile number is required.';
+        if ($message = Validator::password($password, $email)) $errors['password'] = $message;
+        if ($message = Validator::phone($mobile)) $errors['mobile_number'] = $message;
 
         if (!empty($errors)) {
             http_response_code(422);

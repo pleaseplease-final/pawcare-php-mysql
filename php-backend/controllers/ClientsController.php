@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
+require_once __DIR__ . '/../config/rules.php';
+
 class ClientsController {
     /**
      * View & Search Clients (CRUD: Read / Search)
@@ -46,6 +48,7 @@ class ClientsController {
      */
     public static function show(string $id): void {
         $user = AuthMiddleware::requireAuth();
+        AuthMiddleware::requireOwnerAccess($user, $id);
         $pdo = Database::getConnection();
 
         $stmt = $pdo->prepare("SELECT * FROM owners WHERE id = ?");
@@ -70,7 +73,7 @@ class ClientsController {
      * Add New Client (CRUD: Create)
      */
     public static function store(): void {
-        $user = AuthMiddleware::requireRole(['admin', 'vet', 'assistant']);
+        $user = AuthMiddleware::requireRole(['admin', 'assistant']);
         $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 
         $name = trim($data['name'] ?? '');
@@ -78,20 +81,14 @@ class ClientsController {
         $phone = trim($data['phone'] ?? '');
         $address = trim($data['address'] ?? '');
 
-        // Server-side validation
-        $errors = [];
-        if (empty($name)) $errors['name'] = 'Client name is required.';
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'A valid email is required.';
-        if (empty($phone)) $errors['phone'] = 'Phone number is required.';
-        if (empty($address)) $errors['address'] = 'Address is required.';
-
+        // Server-side validation (formats, required fields and duplicate email or mobile number)
+        $pdo = Database::getConnection();
+        $errors = Rules::owner($pdo, ['name' => $name, 'email' => $email, 'phone' => $phone, 'address' => $address]);
         if (!empty($errors)) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Validation error', 'errors' => $errors]);
+            http_response_code((isset($errors['email']) && str_contains($errors['email'], 'already')) || (isset($errors['phone']) && str_contains($errors['phone'], 'already')) ? 409 : 422);
+            echo json_encode(['success' => false, 'error' => reset($errors), 'errors' => $errors]);
             return;
         }
-
-        $pdo = Database::getConnection();
         $id = 'o_' . bin2hex(random_bytes(5));
 
         $stmt = $pdo->prepare("
@@ -112,7 +109,7 @@ class ClientsController {
      * Edit Client (CRUD: Update)
      */
     public static function update(string $id): void {
-        $user = AuthMiddleware::requireRole(['admin', 'vet', 'assistant']);
+        $user = AuthMiddleware::requireRole(['admin', 'assistant']);
         $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 
         $name = trim($data['name'] ?? '');
@@ -120,13 +117,20 @@ class ClientsController {
         $phone = trim($data['phone'] ?? '');
         $address = trim($data['address'] ?? '');
 
-        if (empty($name) || empty($email) || empty($phone)) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Name, email, and phone are required.']);
+        $pdo = Database::getConnection();
+        $check = $pdo->prepare('SELECT id FROM owners WHERE id = ?');
+        $check->execute([$id]);
+        if (!$check->fetch()) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Owner not found.']);
             return;
         }
-
-        $pdo = Database::getConnection();
+        $errors = Rules::owner($pdo, ['name' => $name, 'email' => $email, 'phone' => $phone, 'address' => $address], $id);
+        if (!empty($errors)) {
+            http_response_code((isset($errors['email']) && str_contains($errors['email'], 'already')) || (isset($errors['phone']) && str_contains($errors['phone'], 'already')) ? 409 : 422);
+            echo json_encode(['success' => false, 'error' => reset($errors), 'errors' => $errors]);
+            return;
+        }
         $stmt = $pdo->prepare("
             UPDATE owners 
             SET name = ?, email = ?, phone = ?, address = ?

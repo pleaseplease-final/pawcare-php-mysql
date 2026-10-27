@@ -30,6 +30,7 @@ if (!str_contains($_SERVER['QUERY_STRING'] ?? '', 'export=csv')) {
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/middleware/auth.php';
 require_once __DIR__ . '/controllers/AuthController.php';
+require_once __DIR__ . '/controllers/PasswordRecoveryController.php';
 require_once __DIR__ . '/controllers/ClientsController.php';
 require_once __DIR__ . '/controllers/PetsController.php';
 require_once __DIR__ . '/controllers/AppointmentsController.php';
@@ -51,6 +52,12 @@ try {
         exit;
     }
 
+    if ($path === '/console' || $path === '/console.php') {
+        header('Content-Type: text/html; charset=UTF-8');
+        require __DIR__ . '/console.php';
+        exit;
+    }
+
     // 1. Health Check
     if ($path === '/api/health' || $path === '/health') {
         Database::getConnection()->query('SELECT 1');
@@ -65,6 +72,18 @@ try {
     }
     if ($path === '/api/auth/register' && $method === 'POST') {
         AuthController::register();
+        exit;
+    }
+    if ($path === '/api/auth/forgot/options' && $method === 'POST') {
+        PasswordRecoveryController::options();
+        exit;
+    }
+    if ($path === '/api/auth/forgot' && $method === 'POST') {
+        PasswordRecoveryController::request();
+        exit;
+    }
+    if ($path === '/api/auth/reset' && $method === 'POST') {
+        PasswordRecoveryController::reset();
         exit;
     }
     if ($path === '/api/auth/logout' && $method === 'POST') {

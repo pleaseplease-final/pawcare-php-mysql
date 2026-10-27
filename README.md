@@ -16,14 +16,51 @@ There are two back ends in this repository:
 3. Start it: `npm run php:serve` (API) or `npm run php:dashboard` (reports dashboard).
 4. Check the connection: `npm run php:test`.
 
+### Deploying the PHP + MySQL back end (Render or Railway)
+Vercel serves the Node app only. The PHP code runs in its own container, using `php-backend/Dockerfile`.
+
+1. **Cloud MySQL:** use your TiDB Cloud database (any MySQL works). Note its host, port, database name, user and password.
+2. **Create the tables once** from your computer, with the same values in `.env` (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSL=true`):
+
+       npm run php:init
+
+   This creates the tables only. Demo accounts are added only with `--demo-data` (local testing; their passwords are public).
+3. **Create your administrator** (choose your own strong password):
+
+       set ADMIN_EMAIL=you@example.com& set ADMIN_PASSWORD=Your-strong#Pass1& set ADMIN_NAME=First Last& set ADMIN_MOBILE=09171234567& npm run php:admin
+
+4. **Deploy:** on Render choose *New > Blueprint* and select this repository (it reads `render.yaml`), or create a *Web Service* with Docker and the Dockerfile path `php-backend/Dockerfile` (build context = repository root). On Railway use the same Dockerfile.
+5. **Environment variables** (in the host's dashboard, never in the repository): `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSL=true`, plus `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` for email codes and `TEXTBEE_API_KEY` / `TEXTBEE_DEVICE_ID` for text-message codes.
+6. Open `https://<your-service>/console` and sign in. `/api/health` should return `{"status":"ok"}`.
+
 ### Accounts and passwords
 No password is stored in the code. Passwords are saved with `password_hash()` (bcrypt) and checked with `password_verify()`.
 To create the first administrator, make a hash and store it on the user row:
 
     php -r "echo password_hash('choose-a-strong-password', PASSWORD_BCRYPT), PHP_EOL;"
 
-### Staff reports dashboard
-`php-backend/dashboard.php` requires a staff sign-in (admin, veterinarian or assistant). Visitors who are not signed in see only the login form. It has date and status filters, totals, CSV export and print, all read from the database.
+### Staff console and reports (PHP-rendered pages)
+Open `php-backend/console.php` (or `/console` through `index.php`) and sign in with a staff account.
+
+| Page | Add | Edit | Delete | Search / filter |
+|---|---|---|---|---|
+| Owners | admin, assistant | admin, assistant | admin (only owners with no patients) | name, email, mobile, address |
+| Patients | admin, assistant, vet | admin, assistant, vet | admin (only patients with no visits or records) | name, breed, owner, species |
+| Appointments | admin, assistant, vet | admin, assistant, vet | admin (not started or paid visits) | patient, owner, reason, status, date range |
+| Staff accounts | admin | admin (role, password, unlock) | admin (not yourself, not the last admin) | name, email, role |
+
+`php-backend/dashboard.php` is the reports page: filters by date range, status and species, totals, CSV export and print, all read from MySQL. Both pages require a sign-in; visitors who are not signed in see only the login form.
+
+### Login, lockout and password recovery
+- An email that is not registered gets: "No account is registered with this email. Please create an account."
+- The account locks after **3** incorrect passwords (the messages count "Attempt 1 of 3", "2 of 3"). It unlocks after 15 minutes or by resetting the password.
+- **Forgot password:** enter the email, choose to receive the 6-digit code by **email** or **text message** (the text option appears only when the account has a verified mobile number), enter the code and a new password. Codes are stored hashed, expire in 10 minutes, allow 5 tries and can be requested once a minute.
+- Delivery uses the same provider settings as the Node server (`BREVO_API_KEY`, `TEXTBEE_API_KEY`, `PHILSMS_TOKEN`). With `APP_ENV=local` and no provider, messages are written to `php-backend/storage/outbox.log` so recovery can be demonstrated offline.
+- API: `POST /api/auth/forgot/options`, `POST /api/auth/forgot`, `POST /api/auth/reset`.
+
+### Testing the PHP back end
+- `npm run php:unit` runs the validation rules (33 checks, no database).
+- `npm run php:e2e` starts the PHP code against a throwaway SQLite file and runs 106 HTTP checks: valid and invalid input for every form, duplicate prevention, delete protection, role restrictions, CSRF, login lockout, password recovery by text message, reports with filters and CSV export, and access without signing in. It never touches your MySQL database or `.env`.
 
 ## Security summary (PHP back end)
 - Passwords: `password_hash()` / `password_verify()`; accounts lock for 15 minutes after 5 failed sign-ins.
@@ -53,7 +90,7 @@ The database-backed suites (`npm run test:*:postgres`) need `TEST_DATABASE_URL` 
 | Consultations | R | CRUD | R | R, own pets only |
 | Reports | yes | yes | no | no |
 
-Rules are enforced on the server for every request; hidden buttons are only a convenience.
+Rules are enforced on the server for every request, in the console and in the API (a pet owner only ever sees their own pets, visits and records); hidden buttons are only a convenience. Reports are for administrators and veterinarians.
 
 ## Persistent account settings
 

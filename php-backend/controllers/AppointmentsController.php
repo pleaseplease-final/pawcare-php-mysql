@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
+require_once __DIR__ . '/../config/rules.php';
+
 class AppointmentsController {
     /**
      * View Appointments with Filters (Date, Status, Vet)
@@ -77,16 +79,12 @@ class AppointmentsController {
         $reason = trim($data['reason'] ?? '');
         $amount = floatval($data['amount'] ?? 600.00);
 
-        // Server-side validation
-        $errors = [];
-        if (empty($petId)) $errors['pet_id'] = 'Pet selection is required.';
-        if (empty($date)) $errors['date'] = 'Appointment date is required.';
-        if (empty($time)) $errors['time'] = 'Appointment time slot is required.';
-        if (empty($reason)) $errors['reason'] = 'Reason for consultation is required.';
-
+        // Server-side validation (formats, clinic hours, existing patient and vet, double-booking)
+        if ($petId !== '') AuthMiddleware::requirePetAccess(Database::getConnection(), $user, $petId);
+        $errors = Rules::appointment(Database::getConnection(), ['pet_id' => $petId, 'vet_id' => $vetId, 'date' => $date, 'time' => $time, 'reason' => $reason, 'amount' => $amount, 'status' => 'Scheduled']);
         if (!empty($errors)) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Validation error', 'errors' => $errors]);
+            http_response_code((isset($errors['time']) && str_contains($errors['time'], 'already booked')) || (isset($errors['date']) && str_contains($errors['date'], 'already has')) ? 409 : 422);
+            echo json_encode(['success' => false, 'error' => reset($errors), 'errors' => $errors]);
             return;
         }
 
@@ -169,6 +167,22 @@ class AppointmentsController {
     public static function destroy(string $id): void {
         $user = AuthMiddleware::requireAuth();
         $pdo = Database::getConnection();
+
+        $find = $pdo->prepare('SELECT pet_id, vet_id, status, billing_status FROM appointments WHERE id = ?');
+        $find->execute([$id]);
+        $appointment = $find->fetch();
+        if (!$appointment) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Appointment not found.']);
+            return;
+        }
+        AuthMiddleware::requirePetAccess($pdo, $user, $appointment['pet_id']);
+        if ($user['role'] === 'vet' && !in_array($appointment['vet_id'], [$user['vet_id'] ?? '', $user['id']], true)) AuthMiddleware::forbid('This visit is assigned to another veterinarian.');
+        if (in_array($appointment['status'], ['Checked-in', 'In consultation', 'Completed', 'Cancelled', 'No-show'], true) || $appointment['billing_status'] === 'Paid') {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'This visit can no longer be cancelled.']);
+            return;
+        }
 
         $stmt = $pdo->prepare("UPDATE appointments SET status = 'Cancelled' WHERE id = ?");
         $stmt->execute([$id]);

@@ -16,7 +16,7 @@ try {
     $schemaFile = __DIR__ . '/../../server/database/pawcare_mysql.sql';
     $seedFile = __DIR__ . '/../../server/database/pawcare_seed_mysql.sql';
 
-    if (!file_exists($schemaFile) || !file_exists($seedFile)) {
+    if (!file_exists($schemaFile) || (in_array('--demo-data', $argv ?? [], true) && !file_exists($seedFile))) {
         throw new Exception("SQL files not found in server/database/");
     }
 
@@ -25,17 +25,24 @@ try {
     $pdo->exec($schemaSql);
     echo "   Schema applied successfully!\n";
 
-    echo "2. Applying Seed Records (pawcare_seed_mysql.sql)...\n";
-    $seedSql = file_get_contents($seedFile);
-    $pdo->exec($seedSql);
-    echo "   Seed records inserted successfully!\n";
+    // Demo accounts use passwords that are published in this repository, so they are only created when asked for explicitly.
+    if (in_array('--demo-data', $argv ?? [], true)) {
+        echo "2. Applying DEMO seed records (pawcare_seed_mysql.sql). Use on a local test database only.
+";
+        $pdo->exec(file_get_contents($seedFile));
+        echo "   Demo records inserted.
+";
+    } else {
+        echo "2. Skipping demo accounts. Create your administrator with scripts/create_admin.php.
+";
+    }
 
     $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
     echo "\nVerification:\n";
     echo " - Total tables verified: " . count($tables) . "\n";
     
     $users = $pdo->query("SELECT id, first_name, email, role FROM users")->fetchAll();
-    echo " - Seeded accounts (" . count($users) . "):\n";
+    echo " - Accounts (" . count($users) . "):\n";
     foreach ($users as $u) {
         echo "   * {$u['email']} ({$u['role']})\n";
     }

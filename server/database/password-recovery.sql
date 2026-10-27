@@ -12,3 +12,4 @@ CREATE TABLE IF NOT EXISTS password_recovery (
  expires_at TIMESTAMPTZ NOT NULL,
  consumed_at TIMESTAMPTZ
 );
+ALTER TABLE password_recovery ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'email';

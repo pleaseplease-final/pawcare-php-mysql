@@ -20,7 +20,7 @@ const hidden={id:'srv_dental',name:'Forbidden dental add-on',category:'Dental & 
 window.fetch=async(path,options={})=>{
  let data,status=200;const url=String(path),body=options.body?JSON.parse(options.body):{};
  if(url==='/api/auth/login'){
-  attempts++;status=attempts===1?401:423;data=attempts===1?{error:'Invalid attempt 1 of 2. Your account will lock after one more incorrect attempt.'}:{error:'Account locked after 2 incorrect attempts. An unlock link has been sent to your email.',unlockRequired:true,retryAfter:60};
+  attempts++;status=attempts<3?401:423;data=attempts<3?{error:attempts===1?'Invalid email or password. Attempt 1 of 3. Your account will lock after 2 more incorrect attempts.':'Invalid email or password. Attempt 2 of 3. Your account will lock after one more incorrect attempt.'}:{error:'Account locked after 3 incorrect attempts. An unlock link has been sent to your email.',unlockRequired:true,retryAfter:60};
  }else if(url==='/api/auth/unlock'){
   assert(options.method==='POST','Unlock must POST the token, not consume via GET');assert(body.token==='synthetic-token','Unlock token must be in body');unlockCalls++;
   data={status:'ok',cooldownUntil:new Date(Date.now()+120000).toISOString(),retryAfter:120};
@@ -40,8 +40,9 @@ async function run(){try{
  sessionStorage.removeItem(cooldownKey);
  const login=<Login role="owner" onLogin={()=>loginResult++} go={()=>{}} onBack={()=>{}}/>;
  await mount(login);await edit('#login-email','synthetic@example.invalid');await edit('#login-password','WrongPassword!');await submit();
- await until(()=>document.body.textContent.includes('one more incorrect'));assert(attempts===1,'First wrong attempt must show warning');
- await submit();await until(()=>document.body.textContent.includes('unlock link has been sent'));assert(attempts===2,'Second failure must lock');
+ await until(()=>document.body.textContent.includes('2 more incorrect'));assert(attempts===1,'First wrong attempt must show warning');
+ await submit();await until(()=>document.body.textContent.includes('one more incorrect'));assert(attempts===2,'Second wrong attempt must warn');
+ await submit();await until(()=>document.body.textContent.includes('unlock link has been sent'));assert(attempts===3,'Third failure must lock');
  assert(document.querySelector('.login-submit').disabled,'Repeated submissions must wait for unlock email retry cooldown');
  await mount(<Unlock token="synthetic-token" onDone={()=>{}}/>);await until(()=>unlockCalls===1 && !!sessionStorage.getItem(cooldownKey));
  await mount(login);assert(document.body.textContent.includes('2:00'),'Unlock returns to login with full countdown');assert(document.querySelector('.login-submit').disabled,'Cooldown must disable login');

@@ -21,6 +21,8 @@ function dashboardCsrfValid(): bool {
     return !empty($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string) ($_POST['csrf'] ?? ''));
 }
 
+// Staff pages share this sign-in; after signing in the user returns to the page they asked for.
+$dashboardSelf = in_array(basename((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH)), ['console.php', 'console'], true) ? 'console.php' : 'dashboard.php';
 $dashboardError = '';
 $dashboardEmail = '';
 $action = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['action'] ?? '') : '';
@@ -48,7 +50,7 @@ if ($action === 'login') {
         $result = json_decode((string) ob_get_clean(), true) ?: [];
         http_response_code(200);
         if (!empty($result['success']) && in_array($result['user']['role'] ?? '', DASHBOARD_ROLES, true)) {
-            header('Location: dashboard.php');
+            header('Location: ' . $dashboardSelf);
             exit;
         }
         if (!empty($result['success'])) {
@@ -90,7 +92,7 @@ http_response_code($currentUser ? 403 : 401);
   </style>
 </head>
 <body>
-  <form method="POST" action="dashboard.php" autocomplete="on">
+  <form method="POST" action="<?= dashboardEscape($dashboardSelf) ?>" autocomplete="on">
     <h1>PawCare staff sign in</h1>
     <p class="sub">Clinic reports are available to signed-in staff only.</p>
     <input type="hidden" name="action" value="login">

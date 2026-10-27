@@ -1,7 +1,7 @@
 import {passwordLogin,consumeUnlock} from '../loginLockout.js';
 import {ensureVerificationDelivery,confirmDelivery,issueVerification,sendMobileVerification,verificationFailure} from '../verificationDelivery.js';
 import {appUrl,sessionCookie} from '../appOrigin.js';
-import {requestPasswordReset,resetPassword} from '../passwordRecovery.js';
+import {recoveryOptions,requestPasswordReset,resetPassword} from '../passwordRecovery.js';
 import { randomInt } from 'node:crypto';
 import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
 import express from 'express';
@@ -20,6 +20,7 @@ import { ensureStaffAccessSchema } from '../staffAccess.js';
 export const getAppUrl = () => appUrl();
 
 const router = express.Router();
+router.post('/forgot/options',recoveryOptions);
 router.post('/forgot',requestPasswordReset);
 router.post('/reset',resetPassword);
 

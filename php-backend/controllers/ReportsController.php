@@ -10,17 +10,29 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
+require_once __DIR__ . '/../config/rules.php';
+
 class ReportsController {
     /**
      * Daily & Period Sales Report with Summary Calculations
      */
     public static function salesReport(): void {
-        AuthMiddleware::requireRole(['admin', 'vet', 'assistant']);
+        AuthMiddleware::requireRole(['admin', 'vet']);
         $pdo = Database::getConnection();
 
         $startDate = $_GET['start_date'] ?? date('Y-m-01');
         $endDate = $_GET['end_date'] ?? date('Y-m-d');
         $export = ($_GET['export'] ?? '') === 'csv';
+        $dateErrors = Validator::errors([
+            'start_date' => Validator::date($startDate, 'start date', false, '2000-01-01'),
+            'end_date' => Validator::date($endDate, 'end date', false, '2000-01-01'),
+        ]);
+        if (!$dateErrors && $startDate > $endDate) $dateErrors['end_date'] = 'The end date must be on or after the start date.';
+        if ($dateErrors) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => reset($dateErrors), 'errors' => $dateErrors]);
+            return;
+        }
 
         // 1. Fetch sales transactions using PDO prepared statements
         $stmt = $pdo->prepare("
@@ -83,13 +95,28 @@ class ReportsController {
      * Appointments & Clinical Workflow Report
      */
     public static function appointmentsReport(): void {
-        AuthMiddleware::requireRole(['admin', 'vet', 'assistant']);
+        AuthMiddleware::requireRole(['admin', 'vet']);
         $pdo = Database::getConnection();
 
         $startDate = $_GET['start_date'] ?? date('Y-m-01');
         $endDate = $_GET['end_date'] ?? date('Y-m-d');
         $status = $_GET['status'] ?? '';
+        $species = $_GET['species'] ?? '';
         $export = ($_GET['export'] ?? '') === 'csv';
+
+        // Server-side validation of the filters
+        $filterErrors = Validator::errors([
+            'start_date' => Validator::date($startDate, 'start date', false, '2000-01-01'),
+            'end_date' => Validator::date($endDate, 'end date', false, '2000-01-01'),
+            'status' => $status === '' ? '' : Validator::oneOf($status, Rules::APPT_STATUSES, 'status'),
+            'species' => $species === '' ? '' : Validator::oneOf($species, Rules::SPECIES, 'species'),
+        ]);
+        if (!$filterErrors && $startDate > $endDate) $filterErrors['end_date'] = 'The end date must be on or after the start date.';
+        if ($filterErrors) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => reset($filterErrors), 'errors' => $filterErrors]);
+            return;
+        }
 
         $sql = "
             SELECT a.id, a.date, a.time, a.reason, a.status, a.amount,
@@ -106,6 +133,10 @@ class ReportsController {
         if (!empty($status)) {
             $sql .= " AND a.status = ?";
             $params[] = $status;
+        }
+        if (!empty($species)) {
+            $sql .= " AND p.species = ?";
+            $params[] = $species;
         }
 
         $sql .= " ORDER BY a.date DESC";

@@ -85,3 +85,12 @@
   .auth-flow .staff-grid { grid-template-columns: minmax(0, 1fr) !important; }
   .auth-flow .staff-steps { justify-content: flex-start !important; }
 }
+
+/* Password recovery: choose email or text message */
+.recovery-choice{display:flex;align-items:center;gap:12px;padding:14px 16px;border:2px solid #dbe4f7;border-radius:16px;background:#f6f9ff;cursor:pointer;transition:border-color .15s,background .15s}
+.recovery-choice:hover{border-color:#9db6ea}
+.recovery-choice.on{border-color:#2563eb;background:#eef3ff;box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.recovery-choice input{width:18px;height:18px;accent-color:#2563eb;flex:none}
+.recovery-choice span{display:grid;gap:2px}
+.recovery-choice b{color:#1e3a8a;font-size:calc(15px*var(--fs,1))}
+.recovery-choice small{color:#5b6b8f;font-size:calc(13px*var(--fs,1));letter-spacing:.02em}

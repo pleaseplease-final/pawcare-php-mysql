@@ -4,6 +4,11 @@
  * Designed for Event-Driven Project Rubric Verification (100 Points)
  */
 require_once __DIR__ . '/dashboard_auth.php'; // stops here unless a staff member is signed in
+if (!in_array($currentUser['role'], ['admin', 'vet'], true)) {
+    http_response_code(403);
+    echo '<!DOCTYPE html><meta charset="utf-8"><title>Reports</title><body style="font-family:sans-serif;padding:40px"><h1>Reports are for administrators and veterinarians</h1><p><a href="console.php">Back to the console</a></p></body>';
+    exit;
+}
 require_once __DIR__ . '/config/database.php';
 
 $pdo = Database::getConnection();
@@ -19,6 +24,16 @@ $revenue = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM appointments WHERE 
 $startDate = $_GET['start_date'] ?? date('Y-m-01');
 $endDate = $_GET['end_date'] ?? date('Y-m-d');
 $statusFilter = $_GET['status'] ?? '';
+$speciesFilter = $_GET['species'] ?? '';
+require_once __DIR__ . '/config/rules.php';
+$filterNotice = '';
+if (Validator::date($startDate, 'start date', false, '2000-01-01') !== '' || Validator::date($endDate, 'end date', false, '2000-01-01') !== '' || $startDate > $endDate) {
+    $filterNotice = 'Choose a valid date range (the end date must not be before the start date). Showing this month instead.';
+    $startDate = date('Y-m-01');
+    $endDate = date('Y-m-d');
+}
+if ($statusFilter !== '' && !in_array($statusFilter, Rules::APPT_STATUSES, true)) $statusFilter = '';
+if ($speciesFilter !== '' && !in_array($speciesFilter, Rules::SPECIES, true)) $speciesFilter = '';
 
 // Fetch filtered reports
 $reportSql = "
@@ -32,6 +47,10 @@ $params = [$startDate, $endDate];
 if (!empty($statusFilter)) {
     $reportSql .= " AND a.status = ?";
     $params[] = $statusFilter;
+}
+if (!empty($speciesFilter)) {
+    $reportSql .= " AND p.species = ?";
+    $params[] = $speciesFilter;
 }
 $reportSql .= " ORDER BY a.date DESC, a.time DESC";
 $reportStmt = $pdo->prepare($reportSql);
@@ -156,11 +175,12 @@ $filteredTotal = count($reports);
     <div class="card-title">
       <span>📊 Clinical Reports & Summary Calculations (Rubric Item #3)</span>
       <div style="display: flex; gap: 8px;">
-        <a href="index.php/api/reports/sales?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&export=csv" class="btn btn-green">⬇ Export CSV (Excel)</a>
+        <a href="api/reports/sales?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&export=csv" class="btn btn-green">⬇ Export CSV (Excel)</a>
         <button onclick="window.print()" class="btn">🖨 Print Report</button>
       </div>
     </div>
 
+    <?php if ($filterNotice): ?><p role="alert" style="background:#fef2f2;color:#b91c1c;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-weight:600"><?= htmlspecialchars($filterNotice) ?></p><?php endif; ?>
     <form method="GET" class="filter-bar">
       <div class="filter-group">
         <label>Start Date</label>
@@ -178,6 +198,13 @@ $filteredTotal = count($reports);
           <option value="Checked-in" <?= $statusFilter === 'Checked-in' ? 'selected' : '' ?>>Checked-in</option>
           <option value="Scheduled" <?= $statusFilter === 'Scheduled' ? 'selected' : '' ?>>Scheduled</option>
           <option value="Cancelled" <?= $statusFilter === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Category (species)</label>
+        <select name="species">
+          <option value="">All species</option>
+          <?php foreach (Rules::SPECIES as $sp): ?><option value="<?= htmlspecialchars($sp) ?>" <?= $speciesFilter === $sp ? 'selected' : '' ?>><?= htmlspecialchars($sp) ?></option><?php endforeach; ?>
         </select>
       </div>
       <button type="submit" class="btn">Apply Filters</button>

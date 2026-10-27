@@ -1,0 +1,15 @@
+# Keep secrets and bulk out of the image.
+.env
+.env.*
+!.env.example
+.git
+node_modules
+dist
+src
+src.zip
+tests
+docs
+public
+php-backend/tests
+php-backend/storage
+php-backend/.env
