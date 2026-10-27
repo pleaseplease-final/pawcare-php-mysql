@@ -4,10 +4,17 @@
  * Dispatches all /api/* requests with CORS, JSON parsing, and unified error handling
  */
 
-header("Access-Control-Allow-Origin: *");
+// Cross-origin calls are allowed only from the origins listed in CORS_ORIGINS (comma separated). Same-origin needs no header.
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = array_filter(array_map('trim', explode(',', (string) getenv('CORS_ORIGINS'))));
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
+    header("Access-Control-Allow-Origin: {$origin}");
+    header("Access-Control-Allow-Credentials: true");
+    header("Vary: Origin");
+}
 header("Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Access-Control-Allow-Credentials: true");
+header("X-Content-Type-Options: nosniff");
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -39,21 +46,15 @@ if (empty($path)) $path = '/';
 try {
     // 0. Interactive Dashboard & Evaluation Portal
     if ($path === '/' || $path === '/dashboard' || $path === '/dashboard.php') {
+        header('Content-Type: text/html; charset=UTF-8');
         require __DIR__ . '/dashboard.php';
         exit;
     }
 
     // 1. Health Check
     if ($path === '/api/health' || $path === '/health') {
-        $pdo = Database::getConnection();
-        $ver = $pdo->query("SELECT VERSION() as v, DATABASE() as db")->fetch();
-        echo json_encode([
-            'status' => 'ok',
-            'server' => 'PHP ' . PHP_VERSION,
-            'database' => $ver['v'],
-            'active_db' => $ver['db'],
-            'timestamp' => date('c')
-        ]);
+        Database::getConnection()->query('SELECT 1');
+        echo json_encode(['status' => 'ok', 'timestamp' => date('c')]);
         exit;
     }
 

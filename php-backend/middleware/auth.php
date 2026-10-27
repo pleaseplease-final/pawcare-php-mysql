@@ -5,6 +5,11 @@
  */
 
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    ]);
     session_start();
 }
 
@@ -15,10 +20,9 @@ class AuthMiddleware {
      * Get the authenticated user from Session or Bearer Token
      */
     public static function getCurrentUser(): ?array {
-        $pdo = Database::getConnection();
-
-        // 1. Check PHP Session
+        // 1. Check PHP Session (the database is only opened when there is something to verify)
         if (!empty($_SESSION['user_id'])) {
+            $pdo = Database::getConnection();
             $stmt = $pdo->prepare("SELECT id, first_name, last_name, email, role, vet_id, owner_id FROM users WHERE id = ? AND is_locked = 0");
             $stmt->execute([$_SESSION['user_id']]);
             $user = $stmt->fetch();
@@ -36,6 +40,7 @@ class AuthMiddleware {
         }
 
         if ($token) {
+            $pdo = Database::getConnection();
             $tokenHash = hash('sha256', $token);
             $stmt = $pdo->prepare("
                 SELECT u.id, u.first_name, u.last_name, u.email, u.role, u.vet_id, u.owner_id

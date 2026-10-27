@@ -257,7 +257,7 @@ export function FormModal({ ent, init, db, me, onSave, onClose }) {
 }
 
 
-SEED.users=[{id:"u1",name:"Clinic Admin",username:"admin",email:"admin@pawcare.com",password:"Admin123",role:"admin"},{id:"u2",name:"Dr. Ana Cruz",username:"vet",email:"vet@pawcare.com",password:"Vet12345",role:"vet",vetId:"v1"},{id:"u3",name:"Liza Ramos",username:"assistant",email:"assistant@pawcare.com",password:"Assist123",role:"assistant"},{id:"u4",name:"Maria Santos",username:"owner",email:"maria@example.com",password:"Owner123",role:"owner",ownerId:"o1"}];
+SEED.users=[];
 E.users={title:"User Accounts",sub:"Create and manage staff and owner logins.",one:"account",cols:["name","username","role","ownerId"],perm:{admin:"crud"},
  f:[{k:"name",l:"Full name",req:1,min:2,max:60,pat:NM,msg:"Letters, spaces, . ' - only"},{k:"username",l:"Username",req:1,pat:/^[a-z0-9_]{3,20}$/,msg:"3-20 lowercase letters, numbers or _"},{k:"password",l:"Password",req:1,pat:/^(?=.*[A-Za-z])(?=.*\d).{8,}$/,msg:"8+ characters with a letter and a number"},{k:"role",l:"Role",t:"select",o:()=>Object.entries(ROLES).map(([k,v])=>[k,v[0]]),req:1},{k:"ownerId",l:"Linked owner (Pet Owner role)",t:"select",o:db=>db.owners.map(o=>[o.id,o.name])}],
  chk:(d,id,db)=>{const e={};if(db.users.some(u=>u.id!==id&&u.username===d.username))e.username="Username is already taken";if(d.role==="owner"&&!d.ownerId)e.ownerId="Link an owner record for this role";return e}};

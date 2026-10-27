@@ -3,6 +3,7 @@
  * PawCare - PHP & MySQL Interactive Evaluator Dashboard & Reports
  * Designed for Event-Driven Project Rubric Verification (100 Points)
  */
+require_once __DIR__ . '/dashboard_auth.php'; // stops here unless a staff member is signed in
 require_once __DIR__ . '/config/database.php';
 
 $pdo = Database::getConnection();
@@ -99,6 +100,11 @@ $filteredTotal = count($reports);
     </div>
     <div>
       <span class="badge">● Online MySQL Connected: <?= htmlspecialchars($dbInfo['v']) ?> (<?= htmlspecialchars($dbInfo['db']) ?>)</span>
+      <form method="POST" action="dashboard.php" style="display:inline;margin-left:10px">
+        <input type="hidden" name="action" value="logout">
+        <input type="hidden" name="csrf" value="<?= dashboardEscape(dashboardCsrf()) ?>">
+        <button type="submit" class="btn" style="background:rgba(255,255,255,.18)">Sign out (<?= dashboardEscape($currentUser['first_name']) ?>)</button>
+      </form>
     </div>
   </div>
 </header>

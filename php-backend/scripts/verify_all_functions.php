@@ -69,10 +69,10 @@ test("API Health Check & MySQL Database Connection", function() {
 
 // 2. Login with password_verify
 $authToken = null;
-test("Account Login & password_verify() (admin@pawcare.com)", function() use (&$authToken) {
+test("Account Login & password_verify() (VERIFY_ADMIN_EMAIL / VERIFY_ADMIN_PASSWORD)", function() use (&$authToken) {
     $res = apiRequest('POST', '/api/auth/login', [
-        'email' => 'admin@pawcare.com',
-        'password' => 'Admin123!'
+        'email' => getenv('VERIFY_ADMIN_EMAIL') ?: '',
+        'password' => getenv('VERIFY_ADMIN_PASSWORD') ?: ''
     ]);
     if ($res['code'] === 200 && !empty($res['data']['token'])) {
         $authToken = $res['data']['token'];

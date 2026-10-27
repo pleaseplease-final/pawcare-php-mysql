@@ -92,7 +92,8 @@ class AuthController {
         $pdo->prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
             ->execute([$tokenHash, $user['id'], $expiresAt]);
 
-        // Store in PHP Session
+        // Store in PHP Session (a new id after sign-in prevents session fixation)
+        if (session_status() === PHP_SESSION_ACTIVE) session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['role'] = $user['role'];
 

@@ -1,26 +1,46 @@
-# PawCare – Veterinary Clinic & Pet Vaccination Daily Hub (React UI)
+# PawCare – Veterinary Clinic & Pet Vaccination Hub
 
-Front-end only. Data lives in memory (`SEED` in `src/lib.jsx`) and resets on refresh.
+A web system for a veterinary clinic with four roles: pet owner, front-desk assistant, veterinarian and administrator.
+
+There are two back ends in this repository:
+
+| Back end | Location | Database | Used for |
+|---|---|---|---|
+| **PHP + MySQL** | `php-backend/` | MySQL (PDO) | Authentication, owners, pets, appointments, consultations, vaccinations, reports (CSV export and print), clinic profile |
+| Node.js + PostgreSQL | `server/`, `api/` | PostgreSQL | The full React portals (deployed on Vercel) |
+
+## Running the PHP + MySQL back end
+
+1. Create the database and tables: `npm run php:init` (reads `server/database/pawcare_mysql.sql`).
+2. Copy `.env.example` to `.env` and set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`. Set `CORS_ORIGINS` only if another site must call the API.
+3. Start it: `npm run php:serve` (API) or `npm run php:dashboard` (reports dashboard).
+4. Check the connection: `npm run php:test`.
+
+### Accounts and passwords
+No password is stored in the code. Passwords are saved with `password_hash()` (bcrypt) and checked with `password_verify()`.
+To create the first administrator, make a hash and store it on the user row:
+
+    php -r "echo password_hash('choose-a-strong-password', PASSWORD_BCRYPT), PHP_EOL;"
+
+### Staff reports dashboard
+`php-backend/dashboard.php` requires a staff sign-in (admin, veterinarian or assistant). Visitors who are not signed in see only the login form. It has date and status filters, totals, CSV export and print, all read from the database.
+
+## Security summary (PHP back end)
+- Passwords: `password_hash()` / `password_verify()`; accounts lock for 15 minutes after 5 failed sign-ins.
+- Sessions: `HttpOnly` and `SameSite=Lax` cookies, a new session id at sign-in, hashed bearer tokens that expire after 7 days.
+- Role-based access: every controller calls `AuthMiddleware::requireAuth()` or `requireRole([...])` before it reads or writes data.
+- SQL injection: PDO prepared statements with bound values everywhere; emulated prepares are off.
+- Validation: server-side checks for required fields, formats, ranges and duplicates, with clear error messages.
+- CORS: closed by default; only origins in `CORS_ORIGINS` are allowed.
+- The public health check returns only `ok` and a timestamp.
+
+## React front end (Node.js back end)
 
     npm install
     npm run dev
 
-## Demo accounts
-| Role | Username | Password |
-|---|---|---|
-| Clinic Administrator | admin | Admin123 |
-| Veterinarian | vet | Vet12345 |
-| Vet Assistant | assistant | Assist123 |
-| Pet Owner | owner | Owner123 |
-
-## Structure
-- `src/pages/Landing.jsx`, `src/pages/Login.jsx` – public pages
-- `src/roles/` – one file per role: its own menu, dashboard and theme
-- `src/Portal.jsx` – shared sidebar/header shell; `src/EntityPage.jsx` – CRUD list + validated form
-- `src/lib.jsx` – mock data, validation rules, entity config, shared components
-
-## Connecting a back end later
-Replace the `db`/`setDb` state in `src/App.jsx` and the add/edit/delete handlers in `src/EntityPage.jsx` with API calls. Passwords are plain text in the mock data; hash them server-side.
+Tests: `npm run test:ui`, `npm run test:clinic`, `npm run test:auth` (Node.js 24+).
+The database-backed suites (`npm run test:*:postgres`) need `TEST_DATABASE_URL` pointing at a disposable local database.
 
 ## Permissions (C = create, R = read, U = update, D = delete)
 | Section | Admin | Vet | Assistant | Owner |
@@ -33,18 +53,7 @@ Replace the `db`/`setDb` state in `src/App.jsx` and the add/edit/delete handlers
 | Consultations | R | CRUD | R | R, own pets only |
 | Reports | yes | yes | no | no |
 
-Rules live in each entity's `perm` in `src/lib.jsx`. Buttons are hidden in the UI, and `src/EntityPage.jsx` re-checks them on save and delete.
-
-## Account activation
-
-Sign up → verify the email link → enter the SMS OTP → log in with your password.
-Email links open the OTP screen directly. Verification sessions cannot open the
-portal; completing OTP clears them and returns to login. Reloading the OTP screen
-resumes the same account's pending verification.
-
-Run `npm run test:auth` with Node.js 24+ for the HTTP authentication regression
-checks. Tests isolate database and message delivery dependencies with Node's
-experimental module mocking; they do not send real email/SMS or use a live database.
+Rules are enforced on the server for every request; hidden buttons are only a convenience.
 
 ## Persistent account settings
 

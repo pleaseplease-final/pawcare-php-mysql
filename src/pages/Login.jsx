@@ -25,13 +25,6 @@ const Eye = ({ off }) => (
   </svg>
 );
 
-const DEMO = {
-  admin: ["admin@pawcare.com", "Admin123"],
-  vet: ["vet@pawcare.com", "Vet12345"],
-  assistant: ["assistant@pawcare.com", "Assist123"],
-  owner: ["maria@example.com", "Owner123"],
-};
-
 export default function Login({ role, notice, bad, onLogin, onBack, go }) {
   const f = useLive({ email: "", password: "" }, validateLogin);
   const [loginWait,setLoginWait]=useResendTimer(Math.max(0,Math.ceil((readLoginCooldown()-Date.now())/1000)));
@@ -190,25 +183,6 @@ export default function Login({ role, notice, bad, onLogin, onBack, go }) {
         </p>
         <p className="auth-fine">Clinic staff accounts are created by the clinic administrator.</p>
 
-        {import.meta.env.DEV && (
-          <div className="demo">
-            <p>Demo accounts (dev only, click to fill):</p>
-            <div className="chips">
-              {Object.entries(DEMO).map(([r, [em, pw]]) => (
-                <button
-                  type="button"
-                  key={r}
-                  className="btn ghost sm"
-                  onClick={() => {
-                    f.patch({ email: em, password: pw });
-                  }}
-                >
-                  {ROLES[r][0]}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </form>
       </div>
     </main>
