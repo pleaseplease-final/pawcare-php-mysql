@@ -153,7 +153,7 @@ class StateController {
             $data = ['summary' => true, 'totals' => ['consultations' => count($consults), 'appointment_status' => $byStatus ?: new stdClass()]] + $data;
         }
 
-        $body = json_encode(['success' => true, 'data' => $data], JSON_PARTIAL_OUTPUT_ON_ERROR);
+        $body = json_encode(['success' => true, 'data' => $data] + $data, JSON_PARTIAL_OUTPUT_ON_ERROR);
         $etag = '"' . hash('sha256', $body) . '"';
         header('ETag: ' . $etag);
         header('Cache-Control: private, no-store');

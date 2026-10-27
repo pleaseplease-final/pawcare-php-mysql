@@ -20,6 +20,8 @@ class Schema {
         self::column($pdo, 'users', 'mobile_verified_at', 'DATETIME DEFAULT NULL');
 
         // 2. owners columns
+        self::column($pdo, 'owners', 'account_status', "VARCHAR(20) NOT NULL DEFAULT 'Active'");
+        self::column($pdo, 'owners', 'notes', 'TEXT DEFAULT NULL');
         self::column($pdo, 'owners', 'first_pet_registered_at', 'DATETIME DEFAULT NULL');
 
         // 3. pets columns
