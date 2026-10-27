@@ -86,6 +86,10 @@ try {
         PasswordRecoveryController::reset();
         exit;
     }
+    if ($path === '/api/auth/password' && $method === 'POST') {
+        AuthController::changePassword();
+        exit;
+    }
     if ($path === '/api/auth/logout' && $method === 'POST') {
         AuthController::logout();
         exit;

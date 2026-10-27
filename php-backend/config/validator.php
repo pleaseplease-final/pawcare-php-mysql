@@ -6,7 +6,7 @@
 class Validator {
     /** Returns an error message, or '' when the password is acceptable. */
     public static function password(string $password, string $email = ''): string {
-        if (strlen($password) < 8) return 'Use at least 8 characters.';
+        if (strlen($password) < 12) return 'Use at least 12 characters.';
         if (strlen($password) > 72) return 'Use at most 72 characters.';
         if (!preg_match('/[a-z]/', $password)) return 'Add a lowercase letter.';
         if (!preg_match('/[A-Z]/', $password)) return 'Add an uppercase letter.';

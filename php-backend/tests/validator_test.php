@@ -7,14 +7,15 @@ $passed = 0; $failed = [];
 function check(string $name, bool $ok): void { global $passed, $failed; $ok ? $passed++ : $failed[] = $name; }
 
 // Passwords
-check('good password accepted', Validator::password('Sunny#Day42', 'maria@example.com') === '');
+check('good password accepted', Validator::password('Sunny#Day4242', 'maria@example.com') === '');
 check('short password rejected', Validator::password('Ab1!') !== '');
-check('no uppercase rejected', Validator::password('sunny#day42') !== '');
-check('no lowercase rejected', Validator::password('SUNNY#DAY42') !== '');
-check('no digit rejected', Validator::password('Sunny#Day') !== '');
-check('no symbol rejected', Validator::password('SunnyDay42') !== '');
-check('spaces rejected', Validator::password('Sunny #Day42') !== '');
-check('email name inside password rejected', Validator::password('Maria#2026x', 'maria@example.com') !== '');
+check('11-character password rejected (12 required)', Validator::password('Sunny#Day42') !== '');
+check('no uppercase rejected', Validator::password('sunny#day4242') !== '');
+check('no lowercase rejected', Validator::password('SUNNY#DAY4242') !== '');
+check('no digit rejected', Validator::password('Sunny#DayDays') !== '');
+check('no symbol rejected', Validator::password('SunnyDay424242') !== '');
+check('spaces rejected', Validator::password('Sunny #Day4242') !== '');
+check('email name inside password rejected', Validator::password('Maria#2026xyz', 'maria@example.com') !== '');
 
 // Email and phone
 check('valid email', Validator::email('a@b.co') === '');

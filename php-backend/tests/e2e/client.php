@@ -207,10 +207,10 @@ check('audit trail recorded the changes', (int) $pdo->query("SELECT COUNT(*) FRO
 $staff = ['first_name' => 'Nina', 'last_name' => 'Cruz', 'email' => 'nina@example.test', 'mobile_number' => '09175550000', 'birthday' => '1992-02-02', 'role' => 'vet', 'password' => 'weak', 'id' => ''];
 $r = $admin->post('users', $staff);
 check('staff: weak password rejected', $r['status'] === 422 && str_contains($r['body'], 'at least 8 characters') || str_contains($r['body'], 'Add'), (string) $r['status']);
-$r = $admin->post('users', ['password' => 'Ok#Strong9x'] + $staff);
+$r = $admin->post('users', ['password' => 'Ok#Strong9xyz'] + $staff);
 check('staff: account created', $r['status'] === 302);
 check('staff: password stored hashed, not plain', str_starts_with((string) $pdo->query("SELECT password_hash FROM users WHERE email='nina@example.test'")->fetchColumn(), '$2y$'));
-$r = $admin->post('users', ['password' => 'Ok#Strong9x', 'email' => 'NINA@example.test'] + $staff);
+$r = $admin->post('users', ['password' => 'Ok#Strong9xyz', 'email' => 'NINA@example.test'] + $staff);
 check('staff: duplicate email rejected', $r['status'] === 422 && str_contains($r['body'], 'already exists'));
 $r = $admin->post('users', ['role' => 'vet', 'password' => '', 'id' => 'admin1', 'first_name' => 'Ada', 'last_name' => 'Admin', 'email' => 'admin1@example.test', 'mobile_number' => '09170000001', 'birthday' => '1990-01-01']);
 check('staff: the only admin cannot be demoted', $r['status'] === 422 && str_contains($r['body'], 'cannot change your own role') || str_contains($r['body'], 'at least one administrator'));
@@ -289,6 +289,53 @@ check('assistant: dashboard page is for admin and vet only (403)', $desk->req('G
 $adminApi = new Client();
 $adminApi->req('POST', '/api/auth/login', ['email' => $creds['admin']['email'], 'password' => $creds['admin']['password']], true);
 check('admin: can delete an owner record through the API', $adminApi->req('DELETE', '/api/clients/o_b')['status'] === 200 || $adminApi->req('DELETE', '/api/clients/o_b')['status'] === 409);
+
+// ---------- 5c. Changing your own password (API and console)
+$pdo->prepare("INSERT INTO users (id, first_name, last_name, birthday, password_hash, email, role, mobile_number, email_verified_at, mobile_verified) VALUES ('pw1', 'Pam', 'Wordsmith', '1990-01-01', ?, 'pamela-secure@example.test', 'assistant', '09170009999', ?, 1)")
+    ->execute([password_hash($pwCurrent = 'Cu!' . bin2hex(random_bytes(5)) . 'R5', PASSWORD_BCRYPT), date('Y-m-d H:i:s')]);
+$pw = new Client();
+$pw->req('POST', '/api/auth/login', ['email' => 'pamela-secure@example.test', 'password' => $pwCurrent], true);
+$brandNew = 'Ne!' . bin2hex(random_bytes(5)) . 'W6';
+$r = $pw->req('POST', '/api/auth/password', ['cur' => '', 'next' => $brandNew, 'conf' => $brandNew], true);
+check('password change: current password is required', $r['status'] === 400 && isset($r['json']['errors']['cur']), $r['body']);
+$r = $pw->req('POST', '/api/auth/password', ['cur' => $pwCurrent, 'next' => $pwCurrent, 'conf' => $pwCurrent], true);
+check('password change: new password equal to the current one is declined', $r['status'] === 400 && str_contains($r['json']['errors']['next'] ?? '', 'different'), $r['body']);
+$r = $pw->req('POST', '/api/auth/password', ['cur' => $pwCurrent, 'next' => 'Short1!', 'conf' => 'Short1!'], true);
+check('password change: weak new password is declined', $r['status'] === 400 && isset($r['json']['errors']['next']), $r['body']);
+$r = $pw->req('POST', '/api/auth/password', ['cur' => $pwCurrent, 'next' => 'Pamela-Secure-77!', 'conf' => 'Pamela-Secure-77!'], true);
+check('password change: a password containing the email name is declined', $r['status'] === 400 && str_contains($r['json']['errors']['next'] ?? '', 'email name'), $r['body']);
+$r = $pw->req('POST', '/api/auth/password', ['cur' => $pwCurrent, 'next' => $brandNew, 'conf' => $brandNew . 'x'], true);
+check('password change: confirmation must match', $r['status'] === 400 && isset($r['json']['errors']['conf']), $r['body']);
+$r = $pw->req('POST', '/api/auth/password', ['cur' => 'Wrong!Password-1', 'next' => $brandNew, 'conf' => $brandNew], true);
+check('password change: wrong current password is declined and counted', $r['status'] === 400 && str_contains($r['json']['errors']['cur'] ?? '', 'Attempt 1 of 3'), $r['body']);
+check('password change: nothing changed after the failed attempt', password_verify($pwCurrent, (string) $pdo->query("SELECT password_hash FROM users WHERE id='pw1'")->fetchColumn()));
+$r = $pw->req('POST', '/api/auth/password', ['cur' => $pwCurrent, 'next' => $brandNew, 'conf' => $brandNew], true);
+check('password change: correct current password changes it', $r['status'] === 200 && ($r['json']['success'] ?? false), $r['body']);
+check('password change: new password is stored hashed', password_verify($brandNew, (string) $pdo->query("SELECT password_hash FROM users WHERE id='pw1'")->fetchColumn()) && !password_verify($pwCurrent, (string) $pdo->query("SELECT password_hash FROM users WHERE id='pw1'")->fetchColumn()));
+check('password change: failed-attempt counter was reset', (int) $pdo->query("SELECT failed_login_attempts FROM users WHERE id='pw1'")->fetchColumn() === 0);
+check('password change: it is recorded in the audit trail', (int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE action='Changed own password'")->fetchColumn() === 1);
+$r = (new Client())->req('POST', '/api/auth/login', ['email' => 'pamela-secure@example.test', 'password' => $pwCurrent], true);
+check('password change: the old password no longer signs in', $r['status'] === 401);
+$r = (new Client())->req('POST', '/api/auth/login', ['email' => 'pamela-secure@example.test', 'password' => $brandNew], true);
+check('password change: the new password signs in', $r['status'] === 200);
+check('password change: requires sign-in', (new Client())->req('POST', '/api/auth/password', ['cur' => 'x', 'next' => $brandNew, 'conf' => $brandNew], true)['status'] === 401);
+for ($i = 1; $i <= 3; $i++) $last = $pw->req('POST', '/api/auth/password', ['cur' => 'Guess!Again-' . $i, 'next' => $brandNew . 'Z', 'conf' => $brandNew . 'Z'], true);
+check('password change: three wrong current passwords lock the account', $last['status'] === 423 && (int) $pdo->query("SELECT is_locked FROM users WHERE id='pw1'")->fetchColumn() === 1, $last['body']);
+
+// the same form inside the staff console
+$page = $admin->req('GET', '/console.php?page=account');
+check('console: My account page opens with the three password fields', $page['status'] === 200 && str_contains($page['body'], 'Current password') && str_contains($page['body'], 'Confirm new password'));
+$tokenA = $admin->csrf('/console.php?page=account');
+$post = fn(array $d) => $admin->req('POST', '/console.php?page=account', $d + ['csrf' => $tokenA, 'page' => 'account', 'op' => 'save']);
+$adminNew = 'Ad!' . bin2hex(random_bytes(5)) . 'M3';
+$r = $post(['cur' => $creds['admin']['password'], 'next' => $creds['admin']['password'], 'conf' => $creds['admin']['password']]);
+check('console: same password as the current one is declined', $r['status'] === 422 && str_contains($r['body'], 'must be different'));
+$r = $post(['cur' => $creds['admin']['password'], 'next' => $adminNew, 'conf' => 'nope']);
+check('console: mismatched confirmation is declined', $r['status'] === 422 && str_contains($r['body'], 'do not match'));
+$r = $post(['cur' => 'Not-The-Password-1', 'next' => $adminNew, 'conf' => $adminNew]);
+check('console: wrong current password is declined', $r['status'] === 422 && str_contains($r['body'], 'Current password is incorrect'));
+$r = $post(['cur' => $creds['admin']['password'], 'next' => $adminNew, 'conf' => $adminNew]);
+check('console: valid change saves and returns to My account', $r['status'] === 302 && password_verify($adminNew, (string) $pdo->query("SELECT password_hash FROM users WHERE id='admin1'")->fetchColumn()));
 
 // ---------- 6. Sign out
 $r = $admin->req('GET', '/console.php?page=owners');

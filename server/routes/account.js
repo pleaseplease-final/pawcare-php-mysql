@@ -55,6 +55,25 @@ accountRouter.post('/profile/photo', async (req, res) => {
 accountRouter.post('/profile/contact', requestContactChange);
 accountRouter.post('/profile/contact/verify', verifyContactChange);
 
+// Lets the form say "current password confirmed" before the user submits. Throttled so it cannot be used to guess a password quickly.
+const checks = new Map();
+accountRouter.post('/password/check', async (req, res) => {
+  const { cur } = req.body || {};
+  if (typeof cur !== 'string' || !cur || cur.length > 128) return res.status(400).json({ error: 'Enter your current password.', errors: { cur: 'Enter your current password.' } });
+  const now = Date.now(), entry = checks.get(req.user.id);
+  const window = entry && now < entry.until ? entry : { count: 0, until: now + 60000 };
+  if (window.count >= 6) return res.status(429).set('Retry-After', '60').json({ error: 'Too many checks. Wait a minute, then try again.' });
+  window.count++;
+  checks.set(req.user.id, window);
+  try {
+    const row = (await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id])).rows[0];
+    res.set('Cache-Control', 'no-store').json({ valid: !!row && await verifyPassword(cur, row.password_hash) });
+  } catch (error) {
+    console.error('Check current password failed:', error.message);
+    res.status(500).json({ error: 'The password could not be checked. Please try again.' });
+  }
+});
+
 accountRouter.post('/password', async (req, res) => {
   const { cur, next, conf } = req.body || {};
   const errors = {};
@@ -62,6 +81,7 @@ accountRouter.post('/password', async (req, res) => {
   if (typeof next !== 'string') errors.next = 'Enter a new password.';
   else if (validatePasswordComplexity(next)) errors.next = validatePasswordComplexity(next);
   else if (next === cur) errors.next = 'New password must be different from current password.';
+  else if (String(req.user.email || '').split('@')[0].length >= 4 && next.toLowerCase().includes(String(req.user.email).split('@')[0].toLowerCase())) errors.next = 'Do not include your email name in the password.';
   if (conf !== next) errors.conf = 'Passwords do not match.';
   if (Object.keys(errors).length) return res.status(400).json({ error: 'Check the password fields.', errors });
   try {
@@ -71,6 +91,7 @@ accountRouter.post('/password', async (req, res) => {
       await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [await hashPassword(next), req.user.id]);
       const sid = req.cookies?.sid || req.headers.authorization?.replace('Bearer ', '');
       await client.query('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [req.user.id, sha256(sid)]);
+      await client.query('INSERT INTO audit_logs (user_name, user_role, action) VALUES ($1, $2, $3)', [req.user.name, req.user.role, 'Changed own password']);
       return true;
     });
     if (!changed) return res.status(400).json({ error: 'Current password is incorrect.', errors: { cur: 'Current password is incorrect.' } });

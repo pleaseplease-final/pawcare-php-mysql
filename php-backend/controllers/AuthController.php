@@ -216,6 +216,69 @@ class AuthController {
     }
 
     /**
+     * Change the signed-in user's own password. Returns field errors, or an empty array on success.
+     * The current password is verified with password_verify(); wrong guesses count toward the same
+     * 3-attempt lock as sign-in, so a stolen session cannot be used to guess it.
+     */
+    public static function applyPasswordChange(PDO $pdo, array $user, string $cur, string $next, string $conf, ?string $keepTokenHash = null): array {
+        $errors = [];
+        if ($cur === '') $errors['cur'] = 'Enter your current password.';
+        if ($message = Validator::password($next, (string) ($user['email'] ?? ''))) $errors['next'] = $message;
+        elseif ($cur !== '' && $next === $cur) $errors['next'] = 'New password must be different from your current password.';
+        if ($conf === '') $errors['conf'] = 'Retype the new password.';
+        elseif ($conf !== $next) $errors['conf'] = 'Passwords do not match.';
+        if ($errors) return $errors;
+
+        $stmt = $pdo->prepare('SELECT password_hash, failed_login_attempts FROM users WHERE id = ?');
+        $stmt->execute([$user['id']]);
+        $row = $stmt->fetch();
+        if (!$row) return ['cur' => 'Account not found.'];
+
+        if (!password_verify($cur, (string) $row['password_hash'])) {
+            $attempts = (int) $row['failed_login_attempts'] + 1;
+            if ($attempts >= self::MAX_LOGIN_ATTEMPTS) {
+                $pdo->prepare('UPDATE users SET failed_login_attempts = ?, is_locked = 1, lockout_until = ? WHERE id = ?')
+                    ->execute([$attempts, date('Y-m-d H:i:s', strtotime('+15 minutes')), $user['id']]);
+                $pdo->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$user['id']]);
+                return ['cur' => 'Account locked after ' . self::MAX_LOGIN_ATTEMPTS . ' incorrect attempts. Use Forgot password to reset it.', '_locked' => 'yes'];
+            }
+            $pdo->prepare('UPDATE users SET failed_login_attempts = ? WHERE id = ?')->execute([$attempts, $user['id']]);
+            return ['cur' => 'Current password is incorrect. Attempt ' . $attempts . ' of ' . self::MAX_LOGIN_ATTEMPTS . '.'];
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('UPDATE users SET password_hash = ?, failed_login_attempts = 0 WHERE id = ?')->execute([password_hash($next, PASSWORD_BCRYPT), $user['id']]);
+            if ($keepTokenHash) $pdo->prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?')->execute([$user['id'], $keepTokenHash]);
+            else $pdo->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$user['id']]);
+            $pdo->prepare('INSERT INTO audit_logs (id, user_name, user_role, action) VALUES (?, ?, ?, ?)')
+                ->execute([uniqid('log_'), trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')), $user['role'], 'Changed own password']);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            return ['cur' => 'Your password was not changed. Please try again.'];
+        }
+        return [];
+    }
+
+    /** POST /api/auth/password  {cur, next, conf} */
+    public static function changePassword(): void {
+        $user = AuthMiddleware::requireAuth();
+        $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        $keep = preg_match('/Bearer\s+(\S+)/i', $authHeader, $m) ? hash('sha256', $m[1]) : null;
+        $errors = self::applyPasswordChange(Database::getConnection(), $user, (string) ($data['cur'] ?? ''), (string) ($data['next'] ?? ''), (string) ($data['conf'] ?? $data['confirm_password'] ?? ''), $keep);
+        if ($errors) {
+            $locked = isset($errors['_locked']);
+            unset($errors['_locked']);
+            http_response_code($locked ? 423 : 400);
+            echo json_encode(['success' => false, 'error' => reset($errors), 'errors' => $errors]);
+            return;
+        }
+        echo json_encode(['success' => true, 'message' => 'Password changed. Your other sessions were signed out.']);
+    }
+
+    /**
      * Get Current Authenticated Profile
      */
     public static function me(): void {

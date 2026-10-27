@@ -59,11 +59,11 @@ Open `php-backend/console.php` (or `/console` through `index.php`) and sign in w
 - API: `POST /api/auth/forgot/options`, `POST /api/auth/forgot`, `POST /api/auth/reset`.
 
 ### Testing the PHP back end
-- `npm run php:unit` runs the validation rules (33 checks, no database).
-- `npm run php:e2e` starts the PHP code against a throwaway SQLite file and runs 106 HTTP checks: valid and invalid input for every form, duplicate prevention, delete protection, role restrictions, CSRF, login lockout, password recovery by text message, reports with filters and CSV export, and access without signing in. It never touches your MySQL database or `.env`.
+- `npm run php:unit` runs the validation rules (34 checks, no database).
+- `npm run php:e2e` starts the PHP code against a throwaway SQLite file and runs 126 HTTP checks: valid and invalid input for every form, duplicate prevention, delete protection, role restrictions, CSRF, login lockout, password recovery by text message, reports with filters and CSV export, and access without signing in. It never touches your MySQL database or `.env`.
 
 ## Security summary (PHP back end)
-- Passwords: `password_hash()` / `password_verify()`; accounts lock for 15 minutes after 5 failed sign-ins.
+- Passwords: `password_hash()` / `password_verify()`, at least 12 characters with upper, lower, number and symbol. Accounts lock for 15 minutes after 3 wrong passwords, at sign-in or when changing a password. Changing a password requires the current one, must differ from it, and signs out other sessions.
 - Sessions: `HttpOnly` and `SameSite=Lax` cookies, a new session id at sign-in, hashed bearer tokens that expire after 7 days.
 - Role-based access: every controller calls `AuthMiddleware::requireAuth()` or `requireRole([...])` before it reads or writes data.
 - SQL injection: PDO prepared statements with bound values everywhere; emulated prepares are off.

@@ -118,14 +118,7 @@ export function validateContact(d) {
   return e;
 }
 
-export function validatePasswordChange(d) {
-  const e = {};
-  if (!d.cur) e.cur = 'Enter your current password';
-  if (!pwOk(String(d.next ?? ''))) e.next = '12+ characters with upper, lower, number and special character.';
-  if (d.next && d.next === d.cur) e.next = 'New password must be different from current password';
-  if (d.conf !== d.next) e.conf = 'Passwords do not match';
-  return e;
-}
+export { PW_RULE_MESSAGE, identityPart, validatePasswordChange } from './passwordChange.js';
 
 export const SPECIES = [
   "Canine (Dog)",

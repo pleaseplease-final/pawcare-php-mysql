@@ -3,7 +3,7 @@ import { ROLES } from "../../lib.jsx";
 import { useEffect, useRef, useState } from "react";
 import "./account.css";
 import { accountProfile, saveAccountProfile, formatAccountAddress, contactFieldErrors, contactCodeErrors } from "../../accountProfile.js";
-import { PW_RULES, pwStrength, validatePasswordChange, clean, normEmail, normPhone, emOk } from "../../validate.js";
+import { PW_RULES, PW_RULE_MESSAGE, identityPart, pwStrength, validatePasswordChange, clean, normEmail, normPhone, emOk } from "../../validate.js";
 import { auth, OFFLINE_MSG } from "../../authApi.js";
 import { useLive, Field, onlyDigitsPlus, noSpaces, PhotoUpload } from "./ui.jsx";
 import AddressPicker from "../../components/AddressPicker.jsx";
@@ -200,40 +200,76 @@ function Contact({ o, me, setDb, say, onFormState }) {
   );
 }
 
-/* The current password is checked by the server. The browser never sees or compares the real one. */
+/* The current password is verified by the server: when the user leaves the field, and again when the form is sent.
+   The new password must follow the rules, differ from the current one, keep the email name out, and match its confirmation. */
 function Password({ me, say, onDone, onFormState }) {
   const [show, setShow] = useState(false), [srv, setSrv] = useState({}), [busy, setBusy] = useState(false), [top, setTop] = useState("");
-  const f = useLive({ cur: "", next: "", conf: "" }, v => validatePasswordChange(v, me.username || "")), v = f.v;
-  const set = (k, x) => { f.set(k, x); if (srv[k]) setSrv(s => ({ ...s, [k]: "" })); };
+  const [curState, setCurState] = useState("idle");   // idle | checking | ok | bad
+  const identity = me.email || me.username || "";
+  const f = useLive({ cur: "", next: "", conf: "" }, v => validatePasswordChange(v, identity)), v = f.v;
+  const set = (k, x) => { f.set(k, x); if (srv[k]) setSrv(s => ({ ...s, [k]: "" })); if (k === "cur") setCurState("idle"); };
   useEffect(()=>{onFormState?.({dirty:!!(v.cur || v.next || v.conf),busy});},[v.cur,v.next,v.conf,busy,onFormState]);
   const t = show ? "text" : "password", s = pwStrength(v.next), rulesOk = PW_RULES.every(([r]) => r(v.next));
+  const local = identityPart(identity), sameAsCurrent = !!v.next && v.next === v.cur, hasIdentity = local.length >= 4 && v.next.toLowerCase().includes(local);
+  const checklist = [
+    ...PW_RULES.map(([r, l]) => [r(v.next), l]),
+    [!!v.next && !!v.cur && !sameAsCurrent, "Different from your current password"],
+    ...(local.length >= 4 ? [[!!v.next && !hasIdentity, "Does not contain your email name"]] : []),
+    [!!v.conf && v.conf === v.next, "Matches the confirmation"],
+  ];
+  const nextShown = f.show("next");
+  const nextError = srv.next || (nextShown === PW_RULE_MESSAGE ? "" : nextShown);   // the rules list already explains a weak password
+
+  const checkCurrent = async () => {
+    f.blur("cur");
+    if (!v.cur || curState === "checking" || busy) return;
+    setCurState("checking");
+    try {
+      const r = await auth.checkPassword(v.cur);
+      setCurState(r.valid ? "ok" : "bad");
+      if (!r.valid) setSrv(prev => ({ ...prev, cur: "Current password is incorrect" }));
+    } catch (x) {
+      setCurState("idle");
+      if (x.status === 429) setSrv(prev => ({ ...prev, cur: x.message }));
+    }
+  };
   const save = async e => {
     e.preventDefault(); setTop(""); f.submit(e);
     if (!f.valid || busy) return;
     setBusy(true);
     try { await auth.changePassword({ cur: v.cur, next: v.next, conf: v.conf }); say("Password changed. Use it next time you log in"); onDone(); return; }
-    catch (x) { const m = explain(x); if (m.fields) setSrv(m.fields); else setTop(m.top); if (x.expired) say(x.message); }
+    catch (x) {
+      const m = explain(x);
+      if (m.fields) {
+        setSrv(m.fields);
+        if (m.fields.cur) setCurState("bad");
+        requestAnimationFrame(() => document.getElementById(m.fields.cur ? "pcur" : m.fields.next ? "pnext" : "pconf")?.focus());
+      } else setTop(m.top);
+      if (x.expired) say(x.message);
+    }
     setBusy(false);
   };
+  const curHint = curState === "checking" ? "Checking…" : curState === "ok" ? "Current password confirmed" : "The password you use to log in";
   return (
     <form className="ow-card ow-pw" onSubmit={save} noValidate>
       <div className="account-security-intro"><span><KeyRound size={24} aria-hidden="true" /></span><div><span className="account-eyebrow">Account security</span><h3>Update your password</h3><p>Use a unique password that you don’t use for another account.</p></div></div>
       <div className="account-password-layout">
         <fieldset className="account-password-fields" disabled={busy}>
-          <Field id="pcur" label="Current password" req type={t} value={v.cur} onChange={x => set("cur", x)} onBlur={() => f.blur("cur")} error={f.show("cur", false) || srv.cur || ""} valid={f.ok("cur") && !srv.cur} hint="The password you use to log in" autoComplete="current-password" />
-          <Field id="pnext" label="New password" req type={t} value={v.next} filter={noSpaces} filterMsg="Spaces aren’t allowed in passwords" maxLen={72} onChange={x => set("next", x)} onBlur={() => f.blur("next")} error={rulesOk ? f.show("next") || srv.next || "" : srv.next || ""} valid={f.ok("next")} autoComplete="new-password" />
+          <Field id="pcur" label="Current password" req type={t} value={v.cur} onChange={x => set("cur", x)} onBlur={checkCurrent} error={f.show("cur", false) || srv.cur || ""} valid={curState === "ok"} hint={curHint} autoComplete="current-password" />
+          <Field id="pnext" label="New password" req type={t} value={v.next} filter={noSpaces} filterMsg="Spaces aren’t allowed in passwords" maxLen={72} onChange={x => set("next", x)} onBlur={() => f.blur("next")} error={nextError} valid={f.ok("next") && rulesOk && !sameAsCurrent && !hasIdentity && !srv.next} hint="Follow every item in the list" autoComplete="new-password" />
           <Field id="pconf" label="Confirm new password" req type={t} value={v.conf} filter={noSpaces} filterMsg="Spaces aren’t allowed in passwords" maxLen={72} onChange={x => set("conf", x)} onBlur={() => f.blur("conf")} error={f.show("conf", !v.next.startsWith(v.conf) || v.conf.length > v.next.length) || srv.conf || ""} valid={f.ok("conf")} hint="Enter your new password again" autoComplete="new-password" />
           <label className="chk"><input type="checkbox" checked={show} onChange={e => setShow(e.target.checked)} /> Show passwords</label>
         </fieldset>
         <aside className="account-password-guide">
-          <h4>Password requirements</h4><p>Your new password needs all five.</p>
-          <ul className="ow-req" aria-label="Password requirements">{PW_RULES.map(([r, l]) => <li key={l} className={r(v.next) ? "y" : "n"}>{r(v.next) ? <Check size={16} aria-hidden="true" /> : <Circle size={13} aria-hidden="true" />}<span>{l}</span></li>)}</ul>
+          <h4>Password requirements</h4><p>{checklist.filter(([ok]) => ok).length} of {checklist.length} done.</p>
+          <ul className="ow-req" aria-label="Password requirements">{checklist.map(([ok, l]) => <li key={l} className={ok ? "y" : "n"}>{ok ? <Check size={16} aria-hidden="true" /> : <Circle size={13} aria-hidden="true" />}<span>{l}</span></li>)}</ul>
           <div className="ow-meter" role="meter" aria-label="Password strength" aria-valuemin={0} aria-valuemax={5} aria-valuenow={s} aria-valuetext={v.next ? LABEL[s] : "Not entered"}><i style={{ width: `${s * 20}%`, background: COLOR[s] }} /></div><span className="ow-hint">{v.next ? `Strength: ${LABEL[s]}` : "Start typing to check strength"}</span>
         </aside>
       </div>
       <p className="account-security-note"><ShieldCheck size={18} aria-hidden="true" /><span>After saving, your other sessions are signed out. You stay signed in on this device.</span></p>
       {top && <p className="err" role="alert">{top}</p>}
-      <div className="row end account-save-bar"><button className="btn" disabled={busy}>{busy ? "Saving…" : "Change password"}</button></div>
+      {f.submitted && !f.valid && <p className="err" role="alert">Please fix {f.count} field{f.count > 1 ? "s" : ""} above.</p>}
+      <div className="row end account-save-bar"><button className="btn" disabled={busy || curState === "checking"}>{busy ? "Saving…" : "Change password"}</button></div>
     </form>
   );
 }

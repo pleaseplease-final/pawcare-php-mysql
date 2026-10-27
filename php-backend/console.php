@@ -19,6 +19,7 @@ const PERMISSIONS = [
     'pets'         => ['admin' => 'crud', 'assistant' => 'cru', 'vet' => 'cru'],
     'appointments' => ['admin' => 'crud', 'assistant' => 'cru', 'vet' => 'cru'],
     'users'        => ['admin' => 'crud'],
+    'account'      => ['admin' => 'u', 'assistant' => 'u', 'vet' => 'u'],
 ];
 function can(string $page, string $op): bool {
     global $role;
@@ -39,6 +40,7 @@ function like(string $q): string { return '%' . addcslashes($q, '%_\\') . '%'; }
 $pages = array_keys(array_filter(PERMISSIONS, fn($roles) => isset($roles[$role])));
 $page = in_array($_GET['page'] ?? 'owners', $pages, true) ? ($_GET['page'] ?? 'owners') : $pages[0];
 $action = in_array($_GET['do'] ?? 'list', ['list', 'new', 'edit'], true) ? ($_GET['do'] ?? 'list') : 'list';
+if ($page === 'account') $action = 'edit';
 $id = (string) ($_GET['id'] ?? '');
 $errors = [];
 $old = [];
@@ -63,6 +65,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'logou
             audit("Unlocked account {$id}");
             flash('ok', 'Account unlocked.');
             back('users');
+        }
+        if ($page === 'account') {
+            require_once __DIR__ . '/controllers/AuthController.php';
+            $errors = AuthController::applyPasswordChange($pdo, $currentUser, (string) ($_POST['cur'] ?? ''), (string) ($_POST['next'] ?? ''), (string) ($_POST['conf'] ?? ''));
+            if (isset($errors['_locked'])) { $_SESSION = []; flash('err', 'Account locked after 3 incorrect attempts. Use Forgot password to reset it.'); header('Location: console.php'); exit; }
+            if (!$errors) { flash('ok', 'Password changed. Your other sessions were signed out.'); back('account'); }
+            http_response_code(422);
+            $old = [];
+            $action = 'edit';
+            $id = $currentUser['id'];
+            goto render;
         }
         $creating = $id === '';
         if (!can($page, $creating ? 'c' : 'u')) { http_response_code(403); flash('err', 'Your role cannot ' . ($creating ? 'add' : 'change') . ' this record.'); back($page); }
@@ -197,9 +210,10 @@ function deleteRecord(string $page, string $id): array {
 }
 
 /* ------------------------------------------------------------------ views ------------------------------------------------------------------ */
+render:
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
-$titles = ['owners' => 'Owners', 'pets' => 'Patients', 'appointments' => 'Appointments', 'users' => 'Staff accounts'];
+$titles = ['owners' => 'Owners', 'pets' => 'Patients', 'appointments' => 'Appointments', 'users' => 'Staff accounts', 'account' => 'My account'];
 
 function field(string $name, string $label, array $values, array $errors, array $attrs = [], string $type = 'text', array $options = []): void {
     $value = (string) ($values[$name] ?? '');
@@ -260,6 +274,12 @@ function form(string $page, ?string $id, array $values, array $errors): void {
             field('status', 'Status', $values + ['status' => 'Scheduled'], $errors, ['required' => true], 'select', array_combine(Rules::APPT_STATUSES, Rules::APPT_STATUSES));
             field('amount', 'Amount (₱)', $values + ['amount' => '600'], $errors, ['min' => '0', 'max' => '1000000', 'step' => '0.01', 'inputmode' => 'decimal'], 'number');
             break;
+        case 'account':
+            echo '<p class="sub" style="grid-column:1/-1;color:#64748b">Use at least 12 characters with an uppercase letter, a lowercase letter, a number and a symbol. It must differ from your current password and must not contain your email name.</p>';
+            field('cur', 'Current password', [], $errors, ['required' => true, 'maxlength' => 128, 'autocomplete' => 'current-password'], 'password');
+            field('next', 'New password', [], $errors, ['required' => true, 'maxlength' => 72, 'autocomplete' => 'new-password', 'data-rule' => 'password', 'data-differs' => 'f_cur', 'data-identity' => $currentUser['email']], 'password');
+            field('conf', 'Confirm new password', [], $errors, ['required' => true, 'maxlength' => 72, 'autocomplete' => 'new-password', 'data-match' => 'f_next'], 'password');
+            break;
         case 'users':
             field('first_name', 'First name', $values, $errors, ['required' => true, 'maxlength' => 60, 'data-rule' => 'name']);
             field('last_name', 'Last name', $values, $errors, ['required' => true, 'maxlength' => 60, 'data-rule' => 'name']);
@@ -270,7 +290,7 @@ function form(string $page, ?string $id, array $values, array $errors): void {
             field('password', $creating ? 'Password' : 'New password (leave blank to keep)', $values, $errors, ($creating ? ['required' => true] : []) + ['maxlength' => 72, 'autocomplete' => 'new-password', 'data-rule' => 'password'], 'password');
             break;
     }
-    echo '</div><div class="actions"><a class="btn ghost" href="console.php?page=' . e($page) . '">Cancel</a><button class="btn" type="submit">' . ($creating ? 'Add' : 'Save changes') . '</button></div></form>';
+    echo '</div><div class="actions"><a class="btn ghost" href="console.php?page=' . e($page) . '">Cancel</a><button class="btn" type="submit">' . ($page === 'account' ? 'Change password' : ($creating ? 'Add' : 'Save changes')) . '</button></div></form>';
 }
 function listView(string $page): void {
     global $pdo, $currentUser;
@@ -401,8 +421,9 @@ function postButton(string $page, string $id, string $op, string $label, string 
 <body>
 <header>
   <nav aria-label="Console">
-    <?php foreach ($pages as $p): ?><a href="console.php?page=<?= e($p) ?>" class="<?= $p === $page ? 'on' : '' ?>"><?= e($titles[$p]) ?></a><?php endforeach; ?>
+    <?php foreach ($pages as $p): if ($p === 'account') continue; ?><a href="console.php?page=<?= e($p) ?>" class="<?= $p === $page ? 'on' : '' ?>"><?= e($titles[$p]) ?></a><?php endforeach; ?>
     <?php if (in_array($role, ['admin', 'vet'], true)): ?><a href="dashboard.php">Reports</a><?php endif; ?>
+    <a href="console.php?page=account" class="<?= $page === 'account' ? 'on' : '' ?>">My account</a>
   </nav>
   <form method="POST" action="dashboard.php"><input type="hidden" name="action" value="logout"><input type="hidden" name="csrf" value="<?= e(dashboardCsrf()) ?>">
     <span style="margin-right:10px"><?= e($currentUser['first_name']) ?> · <?= e(ucfirst($role)) ?></span><button class="btn ghost sm" type="submit">Sign out</button></form>
@@ -415,9 +436,9 @@ function postButton(string $page, string $id, string $op, string $label, string 
       form($page, null, $old, $errors);
   } elseif ($action === 'edit' && can($page, 'u')) {
       $tables = ['owners' => 'owners', 'pets' => 'pets', 'appointments' => 'appointments', 'users' => 'users'];
-      $record = $old ?: (rows("SELECT * FROM {$tables[$page]} WHERE id = ?", [$id])[0] ?? null);
-      if (!$record) echo '<p class="flash err">That record no longer exists.</p>';
-      else { if ($page === 'users') unset($record['password_hash']); form($page, $id, $record, $errors); }
+      $record = $page === 'account' ? [] : ($old ?: (rows("SELECT * FROM {$tables[$page]} WHERE id = ?", [$id])[0] ?? null));
+      if ($record === null) echo '<p class="flash err">That record no longer exists.</p>';
+      else { if ($page === 'users') unset($record['password_hash']); form($page, $page === 'account' ? $currentUser['id'] : $id, $record, $errors); }
   } else {
       listView($page);
   }
@@ -431,7 +452,7 @@ function postButton(string $page, string $id, string $op, string $label, string 
     petname: [/^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .'\-]*$/, "Use letters, numbers and . ' - only."],
     phone: [/^(09|\+639)\d{9}$/, 'Use 09XXXXXXXXX or +639XXXXXXXXX.'],
     email: [/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Enter a valid email address.'],
-    password: [/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{8,72}$/, 'At least 8 characters with upper, lower, a number and a symbol; no spaces.']
+    password: [/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{12,72}$/, 'At least 12 characters with upper, lower, a number and a symbol; no spaces.']
   };
   function check(el) {
     var box = el.closest('.fld'), msg = box.querySelector('.msg'), v = el.value.trim(), text = '';
@@ -441,6 +462,10 @@ function postButton(string $page, string $id, string $op, string $label, string 
       if (rule && !rule[0].test(el.getAttribute('data-rule') === 'phone' ? v.replace(/[\s-]/g, '') : v)) text = rule[1];
       else if (el.minLength > 0 && v.length < el.minLength) text = 'Use at least ' + el.minLength + ' characters.';
       else if (el.validity && !el.validity.valid) text = el.validationMessage;
+      var differs = el.getAttribute('data-differs'), match = el.getAttribute('data-match'), who = (el.getAttribute('data-identity') || '').split('@')[0].toLowerCase();
+      if (!text && differs && document.getElementById(differs).value === v) text = 'New password must be different from your current password.';
+      if (!text && who.length >= 4 && el.getAttribute('data-rule') === 'password' && v.toLowerCase().indexOf(who) !== -1) text = 'Do not include your email name in the password.';
+      if (!text && match && document.getElementById(match).value !== v) text = 'Passwords do not match.';
     }
     msg.textContent = text;
     box.classList.toggle('bad', text !== '');
@@ -450,7 +475,7 @@ function postButton(string $page, string $id, string $op, string $label, string 
   document.querySelectorAll('form[data-live]').forEach(function (form) {
     var fields = form.querySelectorAll('input:not([type=hidden]), select, textarea');
     fields.forEach(function (el) {
-      el.addEventListener('input', function () { check(el); });
+      el.addEventListener('input', function () { check(el); fields.forEach(function (other) { if (other !== el && other.value !== '' && (other.getAttribute('data-match') || other.getAttribute('data-differs'))) check(other); }); });
       el.addEventListener('blur', function () { check(el); });
     });
     form.addEventListener('submit', function (event) {
