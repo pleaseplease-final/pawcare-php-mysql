@@ -1,4 +1,5 @@
 import { after, beforeEach, mock, test } from 'node:test';
+import { confirmedConsultation } from '../../src/consultationSave.js';
 import assert from 'node:assert/strict';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -284,6 +285,29 @@ test('finalization commits notes, vaccine, doctor identity and Completed togethe
   const result = await request('vet', 'POST', '/consultations', soap());
   assert.equal(result.status, 200); assert.equal(db.consults[0].vet_id, 'v1'); assert.equal(db.vaccs[0].vet_id, 'v1'); assert.equal(db.vaccs[0].card_id, 'VACC-SYNTHETIC'); assert.equal(db.appts[0].status, 'Completed'); assert.equal(db.logs.at(-1).user_role, 'vet');
 });
+// External prescriptions (bought at a pharmacy) are free text: accepted empty, as typed, or beside clinic products.
+const externalNote = 'Amoxicillin 250 mg - buy at any pharmacy; give 1 capsule twice daily for 7 days';
+for (const [label, note] of [['empty', ''], ['typed text', externalNote]]) test(`external prescription note is accepted when ${label}`, async () => {
+  db.appts[0].status = 'In consultation';
+  const result = await request('vet', 'POST', '/consultations', { ...soap(), vaccination: undefined, prescription: note });
+  assert.equal(result.status, 200, JSON.stringify(result.data));
+  assert.equal(db.consults[0].prescription, note); assert.equal(result.data.consultation.prescription, note); assert.deepEqual(result.data.prescriptionItems, []);
+  // The browser applies its own confirmation to the server reply; it must accept it too (no 'server did not confirm').
+  const sent = { ...soap(), vaccination: null, prescription: note, prescriptionItems: [], vetId: 'v1' };
+  assert.doesNotThrow(() => confirmedConsultation(result.data, sent));
+});
+test('external prescription note is kept beside a clinic product prescription', async () => {
+  db.appts[0].status = 'In consultation';
+  const items = [{ catalogId: 'product_multivitamin', quantity: 1, instructions: 'Give 1 mL daily with food for 7 days' }];
+  const result = await request('vet', 'POST', '/consultations', { ...soap(), vaccination: undefined, prescription: externalNote, prescriptionItems: items });
+  assert.equal(result.status, 200, JSON.stringify(result.data));
+  assert.match(db.consults[0].prescription, /Give 1 mL daily/); assert.ok(db.consults[0].prescription.endsWith(externalNote));
+});
+test('an over-long external prescription note is refused with a clear message', async () => {
+  db.appts[0].status = 'In consultation';
+  const result = await request('vet', 'POST', '/consultations', { ...soap(), vaccination: undefined, prescription: 'x'.repeat(3001) });
+  assert.equal(result.status, 400); assert.equal(db.consults.length, 0);
+});
 for (const failure of [/INSERT INTO vaccinations/, /SET status = 'Completed'/, /INSERT INTO audit_logs/]) test(`finalization rolls back every clinical write on ${failure}`, async () => {
   db.appts[0].status = 'In consultation'; failSql = failure;
   assert.equal((await request('vet', 'POST', '/consultations', soap())).status, 500);
@@ -297,7 +321,9 @@ test('billing rejects invalid amount, quantity, discount, channel, cash and refe
 test('checkout rejects direct non-retail additions and accepts shampoo with recorded service', async()=>{
   db.appts[0].status='Completed';db.consults.push({id:'c1',appt_id:'a1',performed_services:bill().invoiceItems});
   const product=(await request('assistant','GET','/services/prices')).data.catalog;
-  for(const id of ['srv_chem','srv_dental','product_multivitamin','product_gi_diet']) {
+  // Dental scaling and dental products are no longer offered, so they never appear in the price list at all.
+  assert.ok(!product.some(p=>/dental/i.test(`${p.id} ${p.name} ${p.category}`)),'dental items are not offered');
+  for(const id of ['srv_chem','product_multivitamin','product_gi_diet']) {
     const p=product.find(p=>p.id===id),extra={catalogId:p.id,name:p.name,price:p.price,qty:1};
     const result=await request('assistant','POST','/appointments/a1/billing',{...bill(),amount:500+p.price,cashTendered:500+p.price,invoiceItems:[...bill().invoiceItems,extra]});
     assert.equal(result.status,400,id);assert.match(result.data.error,/Only shampoo and accessories/);

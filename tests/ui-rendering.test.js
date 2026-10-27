@@ -241,7 +241,7 @@ test('vitals render clinical measurements, registration reports, original entrie
 });
 test('correction fields have immediate accessible inline validation and numeric bounds',()=>{
  const html=render(ui.Correction,{entry:{kind:'temp',value:38.5,unit:'°C'},onCancel(){},onSaved(){}});
- assert.match(html,/name="value"/);assert.match(html,/name="reason"/);assert.match(html,/min="33"/);assert.match(html,/max="45"/);assert.match(html,/maxLength="500"/);assert.match(html,/aria-live="polite"/);assert.match(html,/aria-describedby=/);assert.match(html,/original entry stays/);
+ assert.match(html,/name="value"/);assert.match(html,/name="reason"/);assert.match(html,/min="20"/);assert.match(html,/max="50"/);assert.match(html,/maxLength="500"/);assert.match(html,/aria-live="polite"/);assert.match(html,/aria-describedby=/);assert.match(html,/original entry stays/);
 });
 test('vet intake remains available during consultation and registration weight is not a clinical baseline',()=>{
  const db=populated(),pet={...db.pets[0],weight:90,weightOrigin:'registration',weights:[{kg:90,origin:'registration'}]};db.pets[0]=pet;
@@ -384,8 +384,6 @@ for(const [service,reason,title,field] of [
  ['checkup','Vomiting or diarrhea','Vomiting / diarrhea consultation','Onset and frequency'],
  ['checkup','Not eating or drinking','Appetite / drinking consultation','When eating or drinking changed'],
  ['checkup','Annual check-up','Wellness / annual check-up','Diet, activity'],
- ['surgery','Dental assessment','Dental assessment','Mouth / teeth'],
- ['surgery','Surgical assessment','Surgical assessment','Requested procedure'],
  ['checkup','Follow-up visit','Follow-up / recheck','Changes since the previous visit'],
  ['grooming','Sanitary care','sanitary care','Requested sanitary care'],
 ])test(`focused clinical form: ${reason}`,()=>{

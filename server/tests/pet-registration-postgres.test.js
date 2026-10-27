@@ -50,7 +50,7 @@ test('invalid registration details and unsafe images never insert a request',asy
 });
 test('owner identity, photos and dental details survive state reload; migrations stay schema-local',async()=>{
  const owner=await user('details');
- const saved=await create(owner,{ownerId:'o_someone_else',species:'Rodent',dentalOcclusion:'Not Evaluated Yet',photo,notes:'Owner report\nFor clinic review'});
+ const saved=await create(owner,{ownerId:'o_someone_else',species:'Rodent',weight:0.25,dentalOcclusion:'Not Evaluated Yet',photo,notes:'Owner report\nFor clinic review'});
  assert.equal(saved.owner_id,'o_details');assert.equal(saved.photo,photo);assert.equal(saved.revision,0);
  const state=(await call(owner,'GET','/state')).data.data;
  const item=state.petRequests.find(r=>r.id===saved.id);
@@ -91,7 +91,7 @@ test('racing staff decisions cannot decline an approved request or create duplic
  assert.equal((await query('SELECT COUNT(*)::int n FROM vaccinations WHERE pet_id=$1 AND done=true',[pets[0].id])).rows[0].n,0);
 });
 test('photo updates invalidate review; approved request links update the real patient',async()=>{
- const owner=await user('pictures');const saved=await create(owner,{species:'Rodent',dentalOcclusion:'Not Evaluated Yet'});
+ const owner=await user('pictures');const saved=await create(owner,{species:'Rodent',weight:0.25,dentalOcclusion:'Not Evaluated Yet'});
  assert.equal((await call(owner,'POST',`/owner/pets/${saved.id}/photo`,{photo})).status,200);
  assert.equal((await review(saved.id,'approve',0)).status,409);
  const approved=await review(saved.id,'approve',1);assert.equal(approved.status,200,JSON.stringify(approved.data));assert.equal(approved.data.pet.photo,photo);assert.equal(approved.data.pet.dental_occlusion,'Not Evaluated Yet');

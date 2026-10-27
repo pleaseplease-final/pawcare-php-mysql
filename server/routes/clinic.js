@@ -1522,6 +1522,7 @@ clinicRouter.post("/appointments/:id/billing", async (req, res) => {
       }
     });
   } catch (err) {
+    if (!err.status) console.error("Payment save failed:", err);
     res.status(err.status || 500).json({ error: err.status ? err.message : "Unable to save payment. Refresh the visit before retrying." });
   }
 });

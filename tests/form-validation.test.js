@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { admissionErrors, medicineErrors, medicineEventTime, paymentErrors, intakeErrors, noteChoiceError } from '../src/formValidation.js';
+import { admissionErrors, medicineErrors, medicineEventTime, paymentErrors, intakeErrors, noteChoiceError, observationTimeError, manilaInputValue } from '../src/formValidation.js';
 
-const form={apptId:'visit',clinicalNote:'Observed care',carePlan:'Vet monitoring plan',ownerUpdate:'Under observation',temp:'',weight:'',dischargeInstructions:'',nextObservationAt:'2099-10-25T15:00',observationInstructions:'Check observations',consentConfirmed:true,consentName:'Synthetic owner',consentMethod:'Phone',emergencyName:'Synthetic contact',emergencyPhone:'+639170000001',emergencyRelationship:'Owner'};
+const form={apptId:'visit',clinicalNote:'Observed care',carePlan:'Vet monitoring plan',ownerUpdate:'Under observation',temp:'',weight:'',dischargeInstructions:'',nextObservationAt:manilaInputValue(Date.now()+24*3600000),observationInstructions:'Check observations',consentConfirmed:true,consentName:'Synthetic owner',consentMethod:'Phone',emergencyName:'Synthetic contact',emergencyPhone:'+639170000001',emergencyRelationship:'Owner'};
 test('admission required notes, optional measurements and discharge requirements follow action',()=>{
   assert.ok(Object.values(admissionErrors(form,{mode:'create',vet:true,visits:[{id:'visit'}]})).every(v=>!v));
-  const errors=admissionErrors({...form,clinicalNote:'  ',temp:'32.9',weight:'120.01',ownerUpdate:''},{mode:'create',vet:true,visits:[]});
+  const errors=admissionErrors({...form,clinicalNote:'  ',temp:'385',weight:'120.01',ownerUpdate:''},{mode:'create',vet:true,visits:[]});
   for(const key of ['apptId','clinicalNote','temp','weight','ownerUpdate']) assert.ok(errors[key],key);
   assert.ok(admissionErrors(form,{mode:'discharge',vet:true}).dischargeInstructions);
+  // At discharge only the owner-facing home-care instructions are required; the clinic-only summary is optional.
+  const discharge=admissionErrors({...form,clinicalNote:'  ',dischargeInstructions:'Feed small meals for 3 days.'},{mode:'discharge',vet:true});
+  assert.equal(discharge.dischargeInstructions,'');assert.equal(discharge.clinicalNote,'');
   assert.equal(admissionErrors({...form,carePlan:'',temp:'99'},{mode:'release',vet:false}).temp,'');
 });
 const admission={admittedAt:'2026-10-25T00:00:00Z'},order={ordered_at:'2026-10-25T01:00:00.999Z',catalog_id:'medicine',supply_limit:2};
@@ -47,8 +50,10 @@ test('billing immediately revalidates cash when invoice changes',()=>{
   assert.ok(Object.values(paymentErrors({...payment,items:[{catalogId:'home',qty:1,price:0.1},{catalogId:'other',qty:1,price:0.2}],cashTendered:'0.30'})).every(v=>!v));
 });
 test('intake and editable clinic choices show required, range, length and duplicate errors',()=>{
+  // Critical temperatures are recorded as measured; only typing mistakes outside 20–50 °C are rejected.
+  for(const temp of ['30','35','41.5','45','50'])assert.equal(intakeErrors({weight:'5',temp,reason:'Checkup',notes:''}).temp,'',temp);
   assert.ok(Object.values(intakeErrors({weight:'0.05',temp:'45',reason:'Checkup',notes:''})).every(v=>!v));
-  const errors=intakeErrors({weight:'',temp:'45.01',reason:' ',notes:'x'.repeat(2001)});
+  const errors=intakeErrors({weight:'',temp:'50.01',reason:' ',notes:'x'.repeat(2001)});
   for(const key of ['weight','temp','reason','notes'])assert.ok(errors[key],key);
   assert.equal(noteChoiceError('Choice\nOther choice'),'');
   assert.ok(noteChoiceError('Choice\n choice '));
@@ -72,4 +77,13 @@ test('assistant consent and vet observation tasks validate live independently',(
 test('intake reasons reject numbers and punctuation while accepting clinical words and vaccine names',()=>{
  for(const reason of ['455555555555','...','123-456'])assert.match(intakeErrors({weight:'12',temp:'38.5',reason,notes:''}).reason,/words/);
  for(const reason of ['Vomiting for 2 days','5-in-1 vaccine','Pagsusuka'])assert.equal(intakeErrors({weight:'12',temp:'38.5',reason,notes:''}).reason,'');
+});
+
+test('next observation must be in the future and within a week (no 2027 or 2099 typing mistakes)',()=>{
+  const now=Date.parse('2026-10-27T10:00:00+08:00');
+  assert.equal(observationTimeError('2026-10-27T14:00',now),'');
+  assert.equal(observationTimeError('2026-11-02T09:59',now),'');
+  assert.match(observationTimeError('2026-10-27T09:00',now),/future/);
+  for(const value of ['2027-01-05T08:00','2028-03-01T08:00','2099-10-25T15:00'])assert.match(observationTimeError(value,now),/within 7 days/,value);
+  assert.ok(observationTimeError('',now));assert.ok(observationTimeError('2026-02-30T12:00',now));
 });

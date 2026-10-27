@@ -90,8 +90,9 @@ test('all published reasons resolve to a focused profile, preserving explicit se
  assert.equal(visitProfile({service:'checkup',reason:'Concern after vaccination'}).id,'consultation');
  assert.equal(visitProfile({service:'checkup',reason:'Heart concern'}).id,'consultation');
  assert.equal(visitProfile({service:'surgery',reason:'Follow-up'}).id,'followup');
- assert.equal(visitProfile({service:'surgery',reason:'Other'}).id,'surgery');
- assert.equal(visitProfile({reason:'Dental assessment'}).id,'dental');
+ // Surgery and dental assessments are no longer offered: those visits open as an ordinary consultation.
+ assert.equal(visitProfile({service:'surgery',reason:'Other'}).id,'consultation');
+ assert.equal(visitProfile({reason:'Dental assessment'}).id,'consultation');
 });
 test('confirmed preventive and grooming care generate documentation without inferring care from booking',()=>{
  for(const service of ['vaccination','grooming']){

@@ -25,7 +25,7 @@ for(const role of ['admin','vet','assistant','owner']){
 }
 const change=(id,action,revision,reasonCode={deactivate:'security',reactivate:'returned',unlock:'forgot_password'}[action])=>call('admin','POST',`/admin/staff/${id}/access`,{action,revision,reasonCode,reasonNote:'Synthetic governance reason',actorRole:'owner'});
 test('administrator staff list is live, schema-local and excludes all credentials',async()=>{
- const result=await call('admin','GET','/admin/staff');assert.equal(result.status,200);assert.equal(result.data.accountCount,4);assert.equal(result.data.staff.length,2);
+ const result=await call('admin','GET','/admin/staff');assert.equal(result.status,200);assert.equal(result.data.accountCount,4);assert.equal(result.data.staff.length,3,"vet, assistant and the signed-in administrator (marked self)");assert.equal(result.data.staff.filter(u=>u.self).length,1);assert.ok(result.data.staff.every(u=>u.archived===false),"nobody is archived yet");
  assert.equal(result.data.staff.find(u=>u.id==='vet').vetId,'v1');
  assert.doesNotMatch(JSON.stringify(result.data),/password_hash|token_hash|SyntheticPass/);
  assert.equal((await query("SELECT n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid='users'::regclass")).rows[0].nspname,schema);

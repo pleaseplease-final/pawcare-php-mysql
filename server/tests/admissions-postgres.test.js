@@ -95,7 +95,7 @@ test('revision conflicts, safe retries and audit failures cannot duplicate or pa
   finally { await query('DROP TRIGGER reject_admission_audit ON audit_logs'); }
   const after = (await call('vet','GET',path)).data;
   assert.equal(after.admission.revision,2); assert.equal(after.updates.length,3);
-  for (const measurements of [{temp:NaN},{temp:46},{weight:-1},{weight:'10'},{condition:'Stable'},[]]) assert.equal((await call('assistant','POST',`${path}/update`,update(2,{measurements}))).status,400);
+  for (const measurements of [{temp:NaN},{temp:50.1},{weight:-1},{weight:'10'},{condition:'Stable'},[]]) assert.equal((await call('assistant','POST',`${path}/update`,update(2,{measurements}))).status,400);
 });
 test('vet approval, saved payment and reception release are distinct; retries do not duplicate transitions',async () => {
   const unfinished = await admit();
@@ -148,7 +148,7 @@ test('a veterinarian with a signed consultation and admitted patient cannot be d
   f.body.expectedVisit.vetId='guard-vet';
   const admitted = await call('guard-vet','POST','',f.body); assert.equal(admitted.status,200,JSON.stringify(admitted));
   const access = async () => {
-    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/admin/staff/guard-vet/access`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer admission-admin'},body:JSON.stringify({action:'deactivate',revision:0,reason:'Synthetic access check'})});
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/admin/staff/guard-vet/access`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer admission-admin'},body:JSON.stringify({action:'deactivate',revision:0,reasonCode:'security',reasonNote:'Synthetic access check'})});
     return {status:response.status,data:await response.json()};
   };
   const blocked = await access(); assert.equal(blocked.status,409,JSON.stringify(blocked)); assert.match(blocked.data.error,/admissions/);
@@ -328,7 +328,7 @@ test('consent saves without an alternate contact, preserves owner contact access
 
 test('admission dropdown selections survive save, retry and reload in private care history',async()=>{
  const f=await fixture();
- Object.assign(f.body,{reasonChoice:'Supportive care and stabilization',clinicalNote:'Supportive care and stabilization',planTemplate:'Supportive care and stabilization',observationTemplate:'Recovery observation',planConfirmed:true});
+ Object.assign(f.body,{reasonChoice:'Supportive care and stabilization',clinicalNote:'Supportive care and stabilization',planTemplate:'General observation',observationTemplate:'Recovery observation',planConfirmed:true});
  const saved=await call('vet','POST','/',f.body);assert.equal(saved.status,200,JSON.stringify(saved));
  assert.equal((await call('vet','POST','/',f.body)).status,200);
  const detail=await call('vet','GET',`/${saved.data.admission.id}`);assert.equal(detail.status,200);

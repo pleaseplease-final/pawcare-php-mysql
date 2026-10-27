@@ -214,7 +214,7 @@ test('a second clinic administrator can be invited, but only with explicit confi
   steps=[admin];
   const unconfirmed = await request('/staff/invite',{session:true,body});
   assert.equal(unconfirmed.res.status,400);assert.match(unconfirmed.data.error,/Confirm/);assert.equal(steps.length,0,'nothing is written before the confirmation');
-  steps=[admin,{sql:/to_regclass/,rows:[{migrations:'pawcare_schema_migrations'}]},{sql:/staff-access-v1|SELECT version/,rows:[{version:'x'}]},{sql:/SELECT version/,rows:[{version:'x'}]},
+  steps=[admin,{sql:/to_regclass/,rows:[{migrations:'pawcare_schema_migrations'}]},{sql:/staff-access-v1|SELECT version/,rows:[{version:'x'}]},{sql:/SELECT version/,rows:[{version:'x'}]},{sql:/SELECT version/,rows:[{version:'x'}]},
     {sql:/SELECT id FROM users/,rows:[]},{sql:/INSERT INTO staff_invitations/,check:params=>assert.equal(params[2],'admin')},{sql:/INSERT INTO audit_logs/,check:params=>assert.match(params[2],/FULL ADMINISTRATOR access/)}];
   const confirmed = await request('/staff/invite',{session:true,body:{...body,confirmAdmin:true}});
   assert.equal(confirmed.res.status,200);assert.match(sentMail.at(-1)[1],/Clinic Administrator/);
