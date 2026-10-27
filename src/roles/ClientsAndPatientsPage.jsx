@@ -607,8 +607,8 @@ export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
         </article>)}</PaginatedList> : <div className="empty sm">No registered pets are linked to this owner yet.</div>}
       </Modal>}
 
-      {editOwner && <EditOwnerModal owner={editOwner} onClose={() => setEditOwner(null)} onSaved={saved => { setDb(d => ({ ...d, owners: d.owners.map(o => o.id === saved.id ? { ...o, ...saved } : o) })); setEditOwner(null); say?.(`${saved.name}’s details were updated.`); }} />}
-      {editPet && <EditPetModal pet={editPet} onClose={() => setEditPet(null)} onSaved={saved => { setDb(d => ({ ...d, pets: d.pets.map(p => p.id === saved.id ? { ...p, ...saved } : p) })); setEditPet(null); say?.(`${saved.name}’s record was updated.`); }} />}
+      {editOwner && <EditOwnerModal owner={editOwner} owners={owners} onClose={() => setEditOwner(null)} onSaved={saved => { setDb(d => ({ ...d, owners: d.owners.map(o => o.id === saved.id ? { ...o, ...saved } : o) })); setEditOwner(null); say?.(`${saved.name}’s details were updated.`); }} />}
+      {editPet && <EditPetModal pet={editPet} siblings={pets.filter(p => p.ownerId === editPet.ownerId)} onClose={() => setEditPet(null)} onSaved={saved => { setDb(d => ({ ...d, pets: d.pets.map(p => p.id === saved.id ? { ...p, ...saved } : p) })); setEditPet(null); say?.(`${saved.name}’s record was updated.`); }} />}
 
       {/* Pet Card Modal Popup */}
       {cardPetId && (

@@ -4,7 +4,9 @@ import { api } from '../api.js';
 import { useLive, Field, onlyDigitsPlus } from './owner/ui.jsx';
 import { ownerDetailErrors, petDetailErrors, PET_SEXES, PET_NEUTERED, PET_EARLIEST_BIRTH, changedFields } from '../recordCorrection.js';
 import { today } from '../booking.js';
+import { ownerContactConflicts, findDuplicatePet, duplicatePetMessage } from '../duplicateRules.js';
 
+const phoneChanged = (a, b) => String(a).replace(/[\s-]/g, '') !== String(b || '').replace(/[\s-]/g, '');
 const LABELS = { name: 'name', phone: 'mobile number', email: 'email', address: 'address', breed: 'breed', sex: 'sex', birth: 'birth date', color: 'colour', neutered: 'spayed/neutered status', notes: 'notes' };
 
 /* Shared shell: live validation, a "what will change" summary and server errors shown on the matching field. */
@@ -40,10 +42,15 @@ function EditShell({ title, intro, keys, initial, validate, send, onClose, onSav
   </ClinicDialog>;
 }
 
-export function EditOwnerModal({ owner, onClose, onSaved }) {
+export function EditOwnerModal({ owner, owners = [], onClose, onSaved }) {
   const initial = { name: owner.name || '', phone: owner.phone || '', email: owner.email || '', address: owner.address || '' };
   return <EditShell title={`Edit ${owner.name}`} intro="Correct the owner’s contact record. Every change is saved to the audit trail." keys={Object.keys(initial)} initial={initial}
-    validate={ownerDetailErrors} onClose={onClose} onSaved={saved => onSaved(saved.owner)}
+    validate={v => {
+      const errors = ownerDetailErrors(v), clash = ownerContactConflicts(owners, v, owner.id);
+      if (!errors.phone && clash.phone && phoneChanged(v.phone, owner.phone)) errors.phone = `This mobile number is already on ${clash.phone.name}’s record.`;
+      if (!errors.email && clash.email && v.email.trim().toLowerCase() !== String(owner.email || '').trim().toLowerCase()) errors.email = `This email is already on ${clash.email.name}’s record.`;
+      return errors;
+    }} onClose={onClose} onSaved={saved => onSaved(saved.owner)}
     send={async v => {
       const result = await api.put(`/api/owners/${owner.id}/details`, { ...v, expected: initial });
       if (!result?.success || result.owner?.id !== owner.id) throw new Error('The server did not confirm the change. Refresh clinic records and review the owner.');
@@ -63,11 +70,16 @@ export function EditOwnerModal({ owner, onClose, onSaved }) {
   </EditShell>;
 }
 
-export function EditPetModal({ pet, onClose, onSaved }) {
+export function EditPetModal({ pet, siblings = [], onClose, onSaved }) {
   const initial = { name: pet.name || '', breed: pet.breed || '', sex: pet.sex || '', birth: pet.birth || '', color: pet.color || '', neutered: pet.neutered || '', notes: pet.notes || '' };
   const TODAY = today();
   return <EditShell title={`Edit ${pet.name}`} intro="Correct the patient’s record. Species and weight history are kept as recorded; use vitals to log new weights." keys={Object.keys(initial)} initial={initial}
-    validate={v => petDetailErrors(v, TODAY)} onClose={onClose} onSaved={saved => onSaved(saved.pet)}
+    validate={v => {
+      const errors = petDetailErrors(v, TODAY);
+      const twin = !errors.name && !errors.birth && findDuplicatePet(siblings, { ownerId: pet.ownerId, name: v.name, species: pet.species, birth: v.birth }, pet.id);
+      if (twin) errors.name = duplicatePetMessage(twin);
+      return errors;
+    }} onClose={onClose} onSaved={saved => onSaved(saved.pet)}
     send={async v => {
       const result = await api.put(`/api/pets/${pet.id}/details`, { ...v, expected: initial });
       if (!result?.success || result.pet?.id !== pet.id) throw new Error('The server did not confirm the change. Refresh clinic records and review the patient.');

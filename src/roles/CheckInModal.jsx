@@ -3,6 +3,7 @@ import AllergyEditor from '../components/AllergyEditor.jsx';
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
 import {visitFormType} from '../visitForm.js';
 import { useFormValidation } from '../components/useFormValidation.jsx';
+import { weightJump } from '../visitClosure.js';
 import { intakeErrors } from '../formValidation.js';
 import { vaccineIdFromReason, vaccineReason } from '../vaccineBooking.js';
 import { VaccineEstimate, VaccinePicker } from "../components/VaccineBooking.jsx";
@@ -96,7 +97,12 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
 
   const review = useSubmissionReview([weight,temp,triage,serviceReason,notes,fasted,currentVisit,pet,owner,stale,TODAY]);
 
-  const validation = useFormValidation(intakeErrors({weight,temp,reason:serviceReason,notes}));
+  // A weight far from the last clinic measurement is often a typo (65 vs 6.5), so it is confirmed once per value.
+  const [confirmedWeight, setConfirmedWeight] = useState(null);
+  const intakeProblems = intakeErrors({weight,temp,reason:serviceReason,notes});
+  const jump = !intakeProblems.weight ? weightJump(lastWeight, weight) : null;
+  const confirmError = jump && confirmedWeight !== String(weight).trim() ? `This is ${jump.percent}% different from the last clinic weight (${jump.before} kg). Confirm it is correct or fix the number.` : '';
+  const validation = useFormValidation({...intakeProblems, confirmWeight: confirmError});
 
   const submit = async (e) => {
     e.preventDefault();
@@ -295,6 +301,11 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
                     <button type="button" className="btn ghost sm" disabled={!Number.isFinite(parseFloat(weight))} onClick={() => handleStepWeight(+0.5)}>+0.5</button>
                   </div>
                   {validation.feedback('weight')}
+                  {jump && <label className="admission-check" style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8 }}>
+                    <input type="checkbox" {...validation.field('confirmWeight')} checked={confirmedWeight === String(weight).trim()} onChange={e => setConfirmedWeight(e.target.checked ? String(weight).trim() : null)} />
+                    <span>Yes, {weight} kg is correct. Last clinic weight was {jump.before} kg ({jump.percent}% change).</span>
+                  </label>}
+                  {jump && validation.feedback('confirmWeight')}
                 </div>
 
                 {weightAnalysis && (

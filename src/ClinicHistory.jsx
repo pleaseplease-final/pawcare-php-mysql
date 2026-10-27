@@ -55,20 +55,18 @@ export function ClinicHistory({db,me,children}) {
   const merged=mergeClinicHistory(db,history,me);
   return <Context.Provider value={value}>{children({...merged,historyComplete:value.complete})}</Context.Provider>;
 }
+/* Older records load in the background on pages that search, report or print them, so nobody has to ask for them.
+   Pages that don't need the full history show nothing. A visible message appears only if loading fails. */
 export function HistoryControls({auto=false}) {
   const history=useContext(Context);
-  useEffect(()=>{if(auto && history && !history.started && !history.loading && !history.error)history.load();},[auto,history?.started,history?.loading,history?.error]);
-  useEffect(()=>{if(auto && history?.stale && !history.loading && !history.error)history.load(true);},[auto,history?.stale,history?.loading,history?.error]);
-  if(!history)return null;
+  useEffect(()=>{if(auto && history && !history.started && !history.loading && !history.error)history.load(false,true);},[auto,history?.started,history?.loading,history?.error]);
+  useEffect(()=>{if(auto && history?.started && history.hasMore && !history.loading && !history.error && !history.stale)history.load(false,true);},[auto,history?.started,history?.hasMore,history?.loading,history?.error,history?.stale]);
+  useEffect(()=>{if(auto && history?.stale && !history.loading && !history.error)history.load(true,true);},[auto,history?.stale,history?.loading,history?.error]);
+  if(!history || !auto)return null;
   if(history.error)return <div className="clinic-data-error" role="alert" style={{margin:'0 0 14px',padding:'10px 14px',borderRadius:8,display:'flex',gap:12,flexWrap:'wrap',justifyContent:'space-between',alignItems:'center'}}>
-    <span>{history.error}</span><button className="btn sm ghost" onClick={()=>history.load(true)}>Retry loading history</button>
-    <button className="btn sm" onClick={()=>history.load(history.stale,true)}>Load all history</button>
+    <span>Older records could not be loaded. {history.error}</span><button className="btn sm ghost" onClick={()=>history.load(true,true)}>Try again</button>
   </div>;
-  if(history.hasMore || history.loading)return <div className="clinic-history-more" style={{margin:'0 0 12px'}} aria-busy={history.loading}>
-    <p role="status">{history.loadingAll ? `Loading all history… ${history.pagesLoaded} ${history.pagesLoaded===1?'page':'pages'} loaded.` : history.loading ? 'Loading saved history…' : 'Showing loaded records. Load all history to include earlier records in searches, reports and printing.'}</p>
-    <div className="row" style={{flexWrap:'wrap',gap:8}}><button className="btn sm ghost" disabled={history.loading} onClick={()=>history.load()}>Load older history</button>
-    <button className="btn sm" disabled={history.loading} onClick={()=>history.load(history.stale,true)}>Load all history</button></div>
-  </div>;
+  if(history.loading)return <p className="clinic-history-status" role="status" aria-live="polite" style={{margin:'0 0 10px',fontSize:'calc(12.5px * var(--fs, 1))',opacity:.75}}>Loading saved records…</p>;
   return null;
 }
 export function useHistoryComplete(){return useContext(Context)?.complete ?? true;}

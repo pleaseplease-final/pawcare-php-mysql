@@ -8,6 +8,8 @@ import VaccinationCards from "./VaccinationCards.jsx";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Thermometer, Scale, CalendarDays, Search, Play, FileText, Hourglass, Stethoscope, CheckCircle2, History, Syringe } from "lucide-react";
 import { SearchField } from "./owner/ui.jsx";
+import CloseVisitModal from "./CloseVisitModal.jsx";
+import { openDays, openAgeLabel, openAgeTone } from "../visitClosure.js";
 import "./assistant-desk.css";
 import { I, TODAY, plus, moveAppt, petName, ICON, Badge } from "../lib.jsx";
 import SoapConsultationModal from "./SoapConsultationModal.jsx";
@@ -31,6 +33,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
   const [handoff, setHandoff] = useState(null);
   const [activeSoap, setActiveSoap] = useState(null); // { appt, pet }
   const [search, setSearch] = useState("");
+  const [closing, setClosing] = useState(null);
 
   const stages = vetQueue(db.appts || [], TODAY, [me.id, me.vetId].filter(Boolean));
   const { waiting, active: inConsult, completed, expected: notArrived } = stages;
@@ -134,7 +137,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
         <div className="row desk-periods" style={{gap:8,flexWrap:'wrap',marginBottom:12}} role="group" aria-label="Visit dates">
           {[["all","All dates"],["today","Today"],["earlier","Earlier unfinished"]].map(([key,label])=><button key={key} className={`btn sm ${period===key?'gold':'ghost'}`} aria-pressed={period===key} onClick={()=>setPeriod(key)}>{label}</button>)}
         </div>
-        {carryover.length>0 && <p className="sf-note">{carryover.length} unfinished visit(s) from earlier days remain in the queue. Review their care status; emergency and priority patients keep their clinical priority.</p>}
+        {carryover.length>0 && <p className="sf-note" role="status">{carryover.length} unfinished visit{carryover.length>1?'s':''} from earlier days {carryover.length>1?'are':'is'} still open. Finish the visit notes, hand the patient over, or close the visit if no care was given. <button type="button" className="btn sm ghost" onClick={()=>{setPeriod('earlier');}}>Show only these</button></p>}
         {stage === "waiting" && <p className="vet-queue-help">Emergency and priority patients appear first, followed by appointment date and time.</p>}
         {displayed.length ? (
           <PaginatedList label="Patient queue" resetKey={[stage,period,search]} className="sf-grid">
@@ -158,7 +161,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
                           <span className={`sf-pill ${emergency ? "er" : "wa"}`}><AlertTriangle size={12} aria-hidden="true" />Triage: {iv.triageLevel}</span>
                         )}
                       </div>
-                      {a.date<TODAY && <span className="sf-pill wa">Unfinished · {a.date}</span>}
+                      {["Checked-in","In consultation"].includes(a.status) && a.date<TODAY && <span className={`sf-pill ${openAgeTone(openDays(a,TODAY))}`}>{openAgeLabel(openDays(a,TODAY))} · booked {a.date}</span>}
                       <VisitNextStep visit={a} />
                       {a.admissionStatus && <span className="sf-pill wa">Hospital stay: {a.admissionStatus}</span>}
                       <div className="sf-reason"><b>Reason for visit:</b> {a.reason}</div><VaccineEstimate appointment={a} compact />
@@ -179,6 +182,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
                     <Badge v={a.status} />
                     {["Checked-in","In consultation"].includes(a.status)&&<button className="btn sm ghost" onClick={()=>setIntake(a)}>Record vitals</button>}
                     {["Checked-in", "In consultation"].includes(a.status) && <button className="btn sm" disabled={!!startingId} onClick={() => setHandoff(a)}>Hand over care</button>}
+                    {["Checked-in", "In consultation"].includes(a.status) && <button className="btn sm danger" disabled={!!startingId} onClick={() => setClosing(a)} title="Close without a visit record, for example when the patient left">Close visit</button>}
                     {a.status === "Checked-in" && <button className="btn sm gold" disabled={!!startingId} onClick={() => startConsult(a)}>{startingId === a.id ? "Starting…" : "Start consultation"}</button>}
                     {a.status === "In consultation" && <button className="btn sm gold" disabled={!!startingId} onClick={() => setActiveSoap({ appt: a, pet: p })}>Resume visit notes</button>}
                     {a.status === "Completed" && <button className="btn sm ghost" onClick={() => openCompleted(a)}><FileText size={14} aria-hidden="true" />View saved notes</button>}
@@ -207,6 +211,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
       </div>
 
       {selectedRecord && <ConsultationDetailModal record={selectedRecord} db={db} setDb={setDb} me={me} onClose={() => setSelectedRecord(null)} />}
+      {closing && <CloseVisitModal visit={closing} petName={petName(db, closing.petId)} onClose={() => setClosing(null)} onClosed={saved => { setDb(d => ({ ...d, appts: d.appts.map(v => v.id === saved.id ? { ...v, ...saved } : v) })); setClosing(null); say("Visit closed without a record."); }} />}
       {handoff && <HandoffModal appt={handoff} db={db} me={me} setDb={setDb} onClose={() => setHandoff(null)} />}
       {activeSoap && (
         <SoapConsultationModal

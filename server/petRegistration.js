@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import {assertNoDuplicatePet} from './duplicates.js';
 import { query } from './db.js';
 import {externalHistoryErrors} from '../src/externalHistory.js';
 import { clinicClock, validDate } from './scheduling.js';
@@ -92,6 +93,7 @@ export async function registrationAudit(client, user, action) {
 
 export async function savePendingPatient(client, request) {
   const id=request.pet_id || 'p_pending_'+crypto.randomUUID();
+  await assertNoDuplicatePet(client,{ownerId:request.owner_id,name:request.name,species:request.species,birth:request.birth,excludeId:request.pet_id || null});
   const {rows}=await client.query(`INSERT INTO pets(id,owner_id,name,species,species_other,breed,sex,birth,weight,color,neutered,notes,photo,dental_occlusion,registration_status)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'Pending')
     ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,species=EXCLUDED.species,species_other=EXCLUDED.species_other,breed=EXCLUDED.breed,

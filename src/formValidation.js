@@ -48,7 +48,7 @@ export function medicineErrors(form,{action,admission,order,event,now=Date.now()
   }
   return errors;
 }
-export function paymentErrors({items,cashTendered,refNo,method,prescribed}) {
+export function paymentErrors({items,cashTendered,refNo,method,prescribed,usedReferences=[]}) {
   const errors={};
   for(const [index,item] of items.entries()) if(!['performed','admission'].includes(item.source)) {
     const limit=prescribed.find(p=>p.catalogId===item.catalogId)?.quantity ?? 1000;
@@ -58,7 +58,7 @@ export function paymentErrors({items,cashTendered,refNo,method,prescribed}) {
   errors.invoice=!items.length || !Number.isFinite(total) || total<=0 || total>10000000 ? 'The invoice total must be greater than zero and at most ₱10,000,000.' : '';
   errors.method=['Cash','GCash','Maya','Credit / Debit Card'].includes(method) ? '' : 'Choose a valid payment method.';
   if(method==='Cash') errors.cashTendered=String(cashTendered).trim()==='' ? 'Enter the actual cash received.' : !Number.isFinite(Number(cashTendered)) || !Number.isSafeInteger(Math.round(Number(cashTendered)*100)) || Math.abs(Number(cashTendered)*100-Math.round(Number(cashTendered)*100))>0.000001 || Number(cashTendered)<Math.max(0,total) ? 'Cash received must cover the total amount due and use at most 2 decimal places.' : '';
-  else errors.refNo=text(refNo,'Verified payment reference',100,true) || (refNo.trim().length<4 ? 'Use at least 4 characters for the verified reference.' : '');
+  else errors.refNo=text(refNo,'Verified payment reference',100,true) || (refNo.trim().length<4 ? 'Use at least 4 characters for the verified reference.' : '') || (usedReferences.includes(String(refNo).trim().toLowerCase()) ? 'This reference was already used to settle another invoice.' : '');
   return errors;
 }
 export function intakeErrors({weight,temp,reason,notes}) {

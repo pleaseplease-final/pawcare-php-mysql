@@ -84,7 +84,8 @@ export default function BillingModal({ appt, db, setDb, me, onClose, onPaid }) {
   const subtotal = items.reduce((sum, item) => sum + Math.round(item.price * 100) * Number(item.qty), 0) / 100;
   const total = Math.max(0, Math.round(subtotal * 100) / 100);
   const unsaved=useUnsavedChanges({value:{items,method,cashTendered,refNo},saving:loading,active:!paid,onClose});
-  const errors = paymentErrors({items,cashTendered,refNo,method,prescribed});
+  const usedReferences = (db.appts || []).filter(a => a.id !== appt.id && a.billingStatus === 'Paid' && a.paymentReference).map(a => String(a.paymentReference).trim().toLowerCase());
+  const errors = paymentErrors({items,cashTendered,refNo,method,prescribed,usedReferences});
   const validation = useFormValidation(errors);
   const change = method === "Cash" ? Math.max(0, Math.round(((+cashTendered || 0) - total) * 100) / 100) : 0;
 

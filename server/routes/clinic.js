@@ -5,6 +5,8 @@ import {resolveWalkInOwner} from '../walkInOwner.js';
 import {vaccinationCardFieldErrors} from '../../src/vaccinationCardFields.js';
 import {externalHistoryErrors} from '../../src/externalHistory.js';
 import {ownerDetailErrors,petDetailErrors,tidy,phoneKey} from '../../src/recordCorrection.js';
+import {assertNoDuplicatePet,assertOwnerContactFree,assertPaymentReferenceUnused,assertDoseNotRecorded} from '../duplicates.js';
+import {closeVisitErrors,closeReasonText,closeReasonLabel,OPEN_STATUSES} from '../../src/visitClosure.js';
 import {clinicToday} from '../../src/ageRules.js';
 import {bookingReasonErrors,bookingReason} from '../../src/bookingReason.js';
 import {digitalVetCardRouter} from './digitalVetCard.js';
@@ -1026,6 +1028,7 @@ clinicRouter.put('/owners/:id/details', async (req, res) => {
       const next = { name: tidy(input.name), phone: phoneKey(input.phone), email: String(input.email ?? '').trim().toLowerCase(), address: tidy(input.address) };
       const changed = ['name', 'phone', 'email', 'address'].filter(key => !sameText(row[key], next[key]));
       if (!changed.length) return row;
+      await assertOwnerContactFree(client, { phone: changed.includes('phone') ? next.phone : '', email: changed.includes('email') ? next.email : '', excludeId: row.id });
       const saved = (await client.query('UPDATE owners SET name=$2,phone=$3,email=$4,address=$5 WHERE id=$1 RETURNING *', [row.id, next.name, next.phone, next.email, next.address])).rows[0];
       await client.query('INSERT INTO audit_logs (user_name,user_role,action) VALUES ($1,$2,$3)', [req.user.name, req.user.role, `Corrected owner record ${row.id}: ${changed.join(', ')}`]);
       return saved;
@@ -1047,6 +1050,7 @@ clinicRouter.put('/pets/:id/details', async (req, res) => {
       const next = { name: tidy(input.name), breed: tidy(input.breed) || 'Mixed Breed', sex: input.sex, birth: input.birth, color: tidy(input.color), neutered: input.neutered, notes: String(input.notes ?? '').trim() };
       const changed = Object.keys(next).filter(key => !sameText(current[key], next[key]));
       if (!changed.length) return row;
+      if (changed.includes('name') || changed.includes('birth')) await assertNoDuplicatePet(client, { ownerId: row.owner_id, name: next.name, species: row.species, birth: next.birth, excludeId: row.id });
       const saved = (await client.query('UPDATE pets SET name=$2,breed=$3,sex=$4,birth=$5,color=$6,neutered=$7,notes=$8 WHERE id=$1 RETURNING *', [row.id, next.name, next.breed, next.sex, next.birth, next.color, next.neutered, next.notes])).rows[0];
       await client.query('INSERT INTO audit_logs (user_name,user_role,action) VALUES ($1,$2,$3)', [req.user.name, req.user.role, `Corrected patient record ${row.id}: ${changed.join(', ')}`]);
       return saved;
@@ -1346,6 +1350,10 @@ clinicRouter.patch("/appointments/:id/status", async (req, res) => {
       }
       const invalid = validateStatusChange(current, req.body, req.user);
       if (invalid) throw Object.assign(new Error(invalid), { status: 409 });
+      if (status === 'Checked-in' || (status === 'In consultation' && current.status !== 'In consultation')) {
+        const other = (await client.query("SELECT id, date, status FROM appointments WHERE pet_id=$1 AND id<>$2 AND status IN ('Checked-in','In consultation') ORDER BY date LIMIT 1", [current.pet_id, current.id])).rows[0];
+        if (other) throw Object.assign(new Error(`This patient already has an open visit from ${String(other.date instanceof Date ? other.date.toISOString() : other.date).slice(0, 10)} (${other.status}). Finish it or close it before opening another.`), { status: 409 });
+      }
       if (['Checked-in','In consultation'].includes(status) && (await client.query("SELECT id FROM pets WHERE id=$1 AND registration_status<>'Verified'",[current.pet_id])).rows.length) throw bookingError('Approve this pet’s appointment request or registration before starting the visit.',409);
       if (status === 'Checked-in' || status === 'In consultation') {
         const doctor=(await client.query("SELECT id, vet_id FROM users WHERE role = 'vet' AND (id=$1 OR vet_id=$1) AND COALESCE(to_jsonb(users)->>'is_active','true') <> 'false'",[current.vet_id])).rows[0];
@@ -1412,6 +1420,36 @@ clinicRouter.patch("/appointments/:id/status", async (req, res) => {
   }
 });
 
+// Closing a visit that never produced a clinical record. Anything already saved against the visit must be completed instead.
+clinicRouter.post("/appointments/:id/close", async (req, res) => {
+  try {
+    const input = req.body || {}, errors = closeVisitErrors(input);
+    if (Object.keys(errors).length) return res.status(400).json({ error: Object.values(errors)[0], errors });
+    await ensureDigitalVetCardSchema();
+    await ensureAdmissionsSchema();
+    const appointment = await withTransaction(async client => {
+      await lockSchedule(client);
+      const row = (await client.query("SELECT * FROM appointments WHERE id = $1 FOR UPDATE", [req.params.id])).rows[0];
+      if (!row) throw Object.assign(new Error("Appointment not found."), { status: 404 });
+      if (!OPEN_STATUSES.includes(row.status)) throw Object.assign(new Error("Only a checked-in or in-consultation visit can be closed. Refresh clinic records."), { status: 409 });
+      if (input.expectedStatus !== row.status) throw Object.assign(new Error("This visit changed. Refresh clinic records and review its current status."), { status: 409 });
+      const [notes, doses, admission] = await Promise.all([
+        client.query("SELECT 1 FROM consultations WHERE appt_id = $1 LIMIT 1", [row.id]),
+        client.query("SELECT 1 FROM vaccinations WHERE appt_id = $1 AND done LIMIT 1", [row.id]),
+        client.query("SELECT 1 FROM admissions WHERE appt_id = $1 LIMIT 1", [row.id]),
+      ]);
+      if (admission.rows.length) throw Object.assign(new Error("This pet was admitted for this visit. Continue care from Admitted Pets instead of closing it."), { status: 409 });
+      if (notes.rows.length || doses.rows.length || (row.invoice_items || []).length) throw Object.assign(new Error("This visit already has saved clinical notes, vaccines or charges. Complete the visit instead of closing it."), { status: 409 });
+      const saved = (await client.query("UPDATE appointments SET status = 'Cancelled', cancel_reason = $2 WHERE id = $1 RETURNING *", [row.id, closeReasonText(input)])).rows[0];
+      await client.query("INSERT INTO audit_logs (user_name,user_role,action) VALUES ($1,$2,$3)", [req.user.name, req.user.role, `Closed visit ${row.id} without a record (${closeReasonLabel(input.reasonCode)})`]);
+      return saved;
+    });
+    res.json({ success: true, appointment });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Unable to close this visit. Please try again." });
+  }
+});
+
 clinicRouter.delete("/appointments/:id", async (req, res) => {
   try {
     await query("DELETE FROM appointments WHERE id = $1", [req.params.id]);
@@ -1456,6 +1494,7 @@ clinicRouter.post("/appointments/:id/billing", async (req, res) => {
       if (current.status !== "Completed" || current.billing_status === "Paid") throw Object.assign(new Error("Only a completed, unpaid consultation can be checked out."), { status: 409 });
       const consultation = (await client.query("SELECT id, prescription_items, performed_services FROM consultations WHERE appt_id = $1 ORDER BY date DESC, created_at DESC, id DESC LIMIT 1", [apptId])).rows[0];
       if (!consultation) throw Object.assign(new Error("A finalized consultation is required before payment."), { status: 409 });
+      if (paymentMethod !== "Cash") await assertPaymentReferenceUnused(client, { reference: req.body.paymentReference, appointmentId: apptId });
       await assertAdmissionCheckout(client, apptId);
       const expectedAdmission = await admissionCharges(client, apptId);
       const canonical = canonicalInvoice(invoiceItems, priceCatalog({includeRetired: true}), expectedAdmission);
@@ -1535,6 +1574,7 @@ clinicRouter.post("/walk-in", async (req, res) => {
       const effectiveOwner = await resolveWalkInOwner(client,req.body.ownerId,registration,ownerId);
       await lockRegistrationOwner(client,effectiveOwner.id);
       await checkRegistrationCapacity(client,effectiveOwner.id,patient.name,null,{pendingRequest:false});
+      await assertNoDuplicatePet(client,{ownerId:effectiveOwner.id,name:patient.name,species:patient.species,birth:patient.birth});
 
       // 2. Insert Pet
       const insPet = await client.query(
@@ -1945,6 +1985,7 @@ clinicRouter.post("/consultations", async (req, res) => {
       const savedConsultation = (await client.query("UPDATE consultations SET performed_services=$1 WHERE id=$2 RETURNING *", [JSON.stringify(services), consultId])).rows[0];
       let savedVaccination = null;
       if (vaccination) {
+        await assertDoseNotRecorded(client, { petId, vaccine: vaccination.vaccine.trim(), date });
         const pet = patient;
         const saved = await client.query(
           `INSERT INTO vaccinations (id, pet_id, card_id, vaccine, brand, batch, date, next_due, done, notes, vet_id, recorded_by, protocol_type, dose_no, dose_of, manufacturer, serial_number)

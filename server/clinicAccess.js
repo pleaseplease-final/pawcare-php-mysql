@@ -99,6 +99,13 @@ export async function clinicAccess(req, res, next) {
       if (role === 'owner') delete req.body.amount;
       return next();
     }
+    if ((match = path.match(/^\/appointments\/([^/]+)\/close$/))) {
+      if (req.method !== 'POST' || !allow('vet', 'admin')) return denied();
+      const row = await appointment(decodeURIComponent(match[1]));
+      if (!row) return fail(res, 404, 'Appointment not found.');
+      if (role === 'vet' && !assignedTo(row, req.user)) return denied();
+      return next();
+    }
     if ((match = path.match(/^\/appointments\/([^/]+)(?:\/(status|billing))?$/))) {
       const action = match[2];
       const roles = action === 'billing' && req.method === 'POST' ? ['assistant'] : action === 'status' && req.method === 'PATCH' ? ['owner', 'assistant', 'vet'] : !action && req.method === 'PUT' ? ['owner', 'assistant'] : [];
