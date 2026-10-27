@@ -10,7 +10,7 @@ const realFetch=window.fetch;
 const assert=(value,message)=>{if(!value)throw Error(message);};
 const tick=()=>new Promise(resolve=>setTimeout(resolve,30));
 async function until(fn){for(let i=0;i<100;i++){if(fn())return;await tick();}throw Error('Timed out');}
-let key=0,failRead=false,failRelease=false,payments=0,releases=0,lastRequest,db;
+let key=0,failRead=false,failRelease=false,invalidRelease=false,readOverride=null,payments=0,releases=0,lastRequest,db;
 const item={catalogId:'srv_consult',name:'Saved consultation',category:'Consultation',price:600,qty:1,source:'performed'};
 const base={id:'visit',petId:'pet',date:'2026-10-27',time:'09:00',reason:'Consultation',status:'Completed',billingStatus:'Unpaid',admissionStatus:'Ready for discharge',admissionId:'stay',invoiceItems:[item]};
 const me={id:'assistant',role:'assistant',name:'Synthetic assistant'};
@@ -29,11 +29,12 @@ window.fetch=async(path,options={})=>{
   payments++;admission.billingStatus='Paid';
   data={success:true,appointment:{...base,...body,paidAt:new Date().toISOString()}};
  }else if(url==='/api/admissions/stay' && (!options.method || options.method==='GET')){
-  if(failRead){status=503;data={error:'Synthetic admission read failure'};}else data={admission};
+  if(failRead){status=503;data={error:'Synthetic admission read failure'};}else data={admission:readOverride || admission};
  }else if(url==='/api/admissions/stay/release'){
   releases++;lastRequest=body;
   assert(body.revision===1 && body.requestId,'Release needs saved revision and request ID');
-  if(failRelease){status=503;data={error:'Synthetic release failure'};}
+  if(invalidRelease)data={success:true,admission:invalidRelease==='wrong-visit' ? {...admission,status:'Discharged',revision:2,dischargedAt:new Date().toISOString(),apptId:'another-visit'} : invalidRelease==='missing-time' ? {...admission,status:'Discharged',revision:2,dischargedAt:null} : admission};
+  else if(failRelease){status=503;data={error:'Synthetic release failure'};}
   else {admission={...admission,status:'Discharged',revision:2,dischargedAt:new Date().toISOString()};data={success:true,admission};}
  }else throw Error(`Unexpected request ${url}`);
  return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json'}});
@@ -59,11 +60,27 @@ async function run(){try{
  await until(()=>document.body.textContent.includes('Synthetic release failure'));
  assert(document.querySelector('textarea[name="clinicalNote"]').value.includes('Released to the owner'),'Failed release retains entries');
  const requestId=lastRequest.requestId;
- failRelease=false;await submit();await click('Confirm release to owner',document.querySelector('.submission-review'));
+ failRelease=false;
+ for(const invalid of ['pending','wrong-visit','missing-time']){
+  invalidRelease=invalid;await submit();
+  const review=document.querySelector('.submission-review');
+  assert(review.textContent.includes('Review pet release') && review.textContent.includes('Paid') && review.textContent.includes(admission.dischargeInstructions),'Release review must show saved payment and home-care instructions');
+  await click('Confirm release to owner',review);
+  await until(()=>document.body.textContent.includes('The server did not confirm this release'));
+  assert(db.appts[0].admissionStatus==='Ready for discharge','Incomplete acknowledgment cannot update visit status');
+ }
+ invalidRelease=false;failRead=true;await submit();await click('Confirm release to owner',document.querySelector('.submission-review'));
  await until(()=>document.body.textContent.includes('Release to the owner has been recorded.'));
  assert(lastRequest.requestId===requestId,'Retry keeps idempotency key');
  assert(db.appts[0].admissionStatus==='Discharged','Update visit status only after saved release');
  assert(payments===1,'Release retry must not repeat payment');
+ await until(()=>document.body.textContent.includes('Retry release status'));
+ assert(document.body.textContent.includes('Release to the owner has been recorded.'),'Failed refresh must retain the saved Discharged confirmation');
+ readOverride={...admission,status:'Ready for discharge',revision:1,dischargedAt:null};failRead=false;
+ await click('Retry release status');
+ assert(document.body.textContent.includes('Release to the owner has been recorded.'),'Stale refresh must not undo the confirmed release');
+ assert(![...document.querySelectorAll('button')].some(b=>b.textContent==='Confirm release to owner'),'Stale refresh must not offer another release');
+ readOverride=null;
  // Reads fail visibly without hiding the saved receipt.
  admission={...admission,status:'Ready for discharge',revision:1};failRead=true;await mount(db.appts[0]);
  await until(()=>document.body.textContent.includes('Retry release status'));
@@ -76,6 +93,6 @@ async function run(){try{
  // An outpatient has no admission link.
  db.appts=[{...db.appts[0],admissionId:null,admissionStatus:null}];await mount();
  assert(!document.querySelector('[aria-label="Pet release after payment"]'),'Outpatient receipt has no release action');
- return {passed:true,checks:['payment leaves release pending','saved home-care instructions','reopened paid receipt offers release','explicit release review','failure retains entries','idempotent release retry','saved Discharged status','receipt survives read failure','read retry','unpaid guard','owner guard','outpatient receipt']};
+ return {passed:true,checks:['payment leaves release pending','saved home-care instructions','reopened paid receipt offers release','explicit release review','failure retains entries','idempotent release retry','saved Discharged status','incomplete/wrong-visit/missing-time acknowledgments rejected','release review includes saved payment and instructions','confirmed release survives stale refresh','saved release survives failed refresh','receipt survives read failure','read retry','unpaid guard','owner guard','outpatient receipt']};
 }finally{flushSync(()=>root.unmount());window.fetch=realFetch;}}
 window.checkoutReleaseResult=run().then(result=>{document.getElementById('results').textContent=JSON.stringify(result,null,2);return result;}).catch(error=>{document.getElementById('results').textContent=error.stack;throw error;});
