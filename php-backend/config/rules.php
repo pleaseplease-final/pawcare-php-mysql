@@ -105,6 +105,36 @@ class Rules {
         return $errors;
     }
 
+    public const PRODUCT_CATEGORIES = ['Pet shampoo', 'Pet vitamins', 'Pet medicine', 'Pet accessories', 'Prescription diet', 'Dental & ear care'];
+    public const SERVICE_CATEGORIES = ['Consultation & Exam', 'Vaccination & Preventive', 'Diagnostic & Lab', 'Procedures & Care', 'Dental & Surgery'];
+
+    /** Price-list item. The name and category are fixed after creation so saved invoices keep matching. */
+    public static function catalog(PDO $pdo, array $in, ?string $id = null): array {
+        $name = trim((string) ($in['name'] ?? ''));
+        $category = (string) ($in['category'] ?? '');
+        $price = trim((string) ($in['price'] ?? ''));
+        $unit = trim((string) ($in['unit'] ?? ''));
+        $description = trim((string) ($in['description'] ?? ''));
+        $errors = [];
+        if ($id === null) {
+            if ($name === '') $errors['name'] = 'Enter the item name.';
+            elseif (mb_strlen($name) < 3) $errors['name'] = 'Use at least 3 characters.';
+            elseif (mb_strlen($name) > 80) $errors['name'] = 'Keep the name under 80 characters.';
+            elseif (!preg_match("/^[\p{L}0-9][\p{L}0-9 .,'’()\/&+%\-]*$/u", $name) || !preg_match('/\p{L}/u', $name)) $errors['name'] = "Start with a letter or number and include a letter. Use letters, numbers and . , ' ( ) / & + % - only.";
+            elseif (self::exists($pdo, 'SELECT id FROM clinic_catalog_items WHERE LOWER(name) = LOWER(?) LIMIT 1', [$name])) $errors['name'] = 'An item with this name already exists in the price list.';
+            if (!in_array($category, array_merge(self::SERVICE_CATEGORIES, self::PRODUCT_CATEGORIES), true)) $errors['category'] = 'Choose a category from the list.';
+        }
+        if ($price === '') $errors['price'] = 'Enter the price in pesos.';
+        elseif (!preg_match('/^\d+(\.\d{1,2})?$/', $price)) $errors['price'] = 'Use numbers only, with at most 2 decimal places.';
+        elseif ((float) $price <= 0) $errors['price'] = 'The price must be more than ₱0.';
+        elseif ((float) $price > 1000000) $errors['price'] = 'The price cannot be more than ₱1,000,000.';
+        if ($unit === '') $errors['unit'] = 'Enter the unit, for example "item / package".';
+        elseif (mb_strlen($unit) > 40) $errors['unit'] = 'Keep the unit under 40 characters.';
+        elseif (preg_match('/[\x00-\x1f\x7f]/', $unit)) $errors['unit'] = 'Remove special characters.';
+        if (mb_strlen($description) > 200) $errors['description'] = 'Keep the description under 200 characters.';
+        return $errors;
+    }
+
     public static function user(PDO $pdo, array $in, ?string $id = null): array {
         $email = trim((string) ($in['email'] ?? ''));
         $errors = Validator::errors([

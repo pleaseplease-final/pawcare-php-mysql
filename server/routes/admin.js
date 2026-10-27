@@ -6,8 +6,15 @@ import { ensureAdmissionsSchema } from '../admissions.js';
 import { refreshManagedCatalog } from '../clinicCatalog.js';
 import { priceCatalog } from '../priceCatalog.js';
 import { catalogErrors, idFor } from '../../src/catalogRules.js';
+import { ACCESS_REASONS, CATALOG_REASONS, reasonErrors, reasonText } from '../../src/accessReasons.js';
 export const adminRouter = express.Router();
 const problem = (message,status=400) => Object.assign(new Error(message),{status});
+// A reason chosen from a list (plus a note for "Other"). Returns the sentence to store, or throws a 400 that names the problem.
+const chosenReason = (list,body) => {
+  const errors = reasonErrors(list,{reasonCode:body.reasonCode,reasonNote:body.reasonNote});
+  if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]),{status:400,errors});
+  return reasonText(list,{reasonCode:body.reasonCode,reasonNote:body.reasonNote});
+};
 adminRouter.use(async(req,res,next)=>{
   if (req.user?.role !== 'admin') return res.status(403).json({error:'Administrator access required.'});
   try {await ensureStaffAccessSchema();next();}
@@ -36,9 +43,9 @@ adminRouter.get('/staff',async(req,res)=>{
 });
 adminRouter.post('/staff/:id/access',async(req,res)=>{
  try {
-  const {action,reason,revision}=req.body;
+  const {action,revision}=req.body;
   if (!['deactivate','reactivate','unlock'].includes(action)) throw problem('Choose a valid staff access action.');
-  if (typeof reason !== 'string' || !reason.trim() || reason.length>300 || /[\u0000-\u001f]/.test(reason)) throw problem('Record a reason for this access change (up to 300 characters).');
+  const reason = chosenReason(ACCESS_REASONS[action],req.body);
   if (!Number.isInteger(revision) || revision<0) throw problem('Refresh the staff list before changing access.',409);
   if (action==='deactivate') await ensureAdmissionsSchema();
   await withTransaction(async client=>{
@@ -53,21 +60,21 @@ adminRouter.post('/staff/:id/access',async(req,res)=>{
     const active=(await client.query("SELECT COUNT(*)::int AS count FROM appointments WHERE vet_id = ANY($1::varchar[]) AND (status IN ('Checked-in','In consultation') OR EXISTS (SELECT 1 FROM admissions d WHERE d.appt_id=appointments.id AND d.status<>'Discharged'))",[[u.id,u.vet_id].filter(Boolean)])).rows[0].count;
     if(active)throw problem(`Transfer waiting or active consultations and complete any remaining admissions before deactivating this account (${active} patient visit(s) still under care).`,409);
    }
-   if(action==='unlock') await client.query('UPDATE users SET is_locked=false,failed_login_attempts=0,lockout_until=NULL,access_reason=$2,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,reason.trim()]);
+   if(action==='unlock') await client.query('UPDATE users SET is_locked=false,failed_login_attempts=0,lockout_until=NULL,access_reason=$2,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,reason]);
    else await client.query('UPDATE users SET is_active=$2,access_reason=$3,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,action==='reactivate',reason.trim()]);
    await client.query('DELETE FROM sessions WHERE user_id=$1',[u.id]);
-   await audit(client,req.user,`Staff access ${action}: ${u.id} (${u.role}); before active=${u.is_active}, locked=${u.is_locked}, revision=${revision}; reason: ${reason.trim()}. Sessions revoked.`);
+   await audit(client,req.user,`Staff access ${action}: ${u.id} (${u.role}); before active=${u.is_active}, locked=${u.is_locked}, revision=${revision}; reason: ${reason}. Sessions revoked.`);
   });
   res.json({success:true});
  } catch(error){res.status(error.status||500).json({error:error.status?error.message:'Access change was not saved. Keep your reason and retry.'});}
 });
 adminRouter.post('/invitations/:id/revoke',async(req,res)=>{
  try {
-  if(typeof req.body.reason!=='string'||!req.body.reason.trim()||req.body.reason.length>300)throw problem('Record why this invitation is being revoked (up to 300 characters).');
+  const reason = chosenReason(ACCESS_REASONS.revoke,req.body);
   await withTransaction(async client=>{
    const r=await client.query('UPDATE staff_invitations SET expired_at=NOW() WHERE id=$1 AND accepted_at IS NULL AND expired_at>NOW() RETURNING id,email',[req.params.id]);
    if(!r.rows.length)throw problem('This invitation has already been accepted, revoked or expired. Refresh the list.',409);
-   await audit(client,req.user,`Revoked staff invitation ${r.rows[0].id} (${r.rows[0].email}); reason: ${req.body.reason.trim()}`);
+   await audit(client,req.user,`Revoked staff invitation ${r.rows[0].id} (${r.rows[0].email}); reason: ${reason}`);
   });res.json({success:true});
  }catch(error){res.status(error.status||500).json({error:error.status?error.message:'Unable to revoke the invitation. Please retry.'});}
 });
@@ -133,6 +140,8 @@ adminRouter.put('/catalog/:id',async(req,res)=>{
   if(Object.keys(errors).length)return res.status(400).json({error:'Check the highlighted fields.',errors});
   // Built-in clinical services feed consultations and vaccine charges, so they can be repriced but not retired.
   if(input.active===false && item.active!==false && item.id.startsWith('srv_'))throw problem('Clinical services cannot be retired because visits and vaccine charges rely on them. Change the price instead.');
+  const statusChange=(item.active!==false)!==input.active;
+  const statusReason=statusChange ? chosenReason(input.active ? CATALOG_REASONS.restore : CATALOG_REASONS.retire,input) : '';
   const price=Number(input.price), unit=String(input.unit).trim(), description=String(input.description||'').trim();
   await withTransaction(async client=>{
    await client.query('SELECT pg_advisory_xact_lock(726341903)');
@@ -142,7 +151,7 @@ adminRouter.put('/catalog/:id',async(req,res)=>{
    const history=Number(current?.price ?? item.price)!==price ? [...earlier,Number(current?.price ?? item.price)].slice(-20) : earlier;
    if(current)await client.query('UPDATE clinic_catalog_items SET price=$2,unit=$3,description=$4,active=$5,previous_prices=$6,revision=revision+1,updated_by=$7,updated_at=NOW() WHERE id=$1',[item.id,price,unit,description,input.active,history,req.user.name]);
    else await client.query('INSERT INTO clinic_catalog_items (id,name,category,price,unit,description,active,built_in,previous_prices,revision,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,$8,1,$9)',[item.id,item.name,item.category,price,unit,description,input.active,history,req.user.name]);
-   const changes=[Number(item.price)!==price&&`price ₱${Number(item.price).toFixed(2)} to ₱${price.toFixed(2)}`,(item.active!==false)!==input.active&&(input.active?'restored':'retired')].filter(Boolean);
+   const changes=[Number(item.price)!==price&&`price ₱${Number(item.price).toFixed(2)} to ₱${price.toFixed(2)}`,(item.active!==false)!==input.active&&(input.active?'restored':'retired')+` (reason: ${statusReason})`].filter(Boolean);
    await audit(client,req.user,`Updated price list item ${item.id} "${item.name}"${changes.length?`: ${changes.join('; ')}`:' (details)'}`);
   });
   const saved=(await reloadCatalog()).find(i=>i.id===item.id);

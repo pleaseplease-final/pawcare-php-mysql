@@ -89,17 +89,27 @@ test('repricing keeps the earlier price valid for visits already recorded', asyn
   assert.equal((await request('PUT', '/catalog/srv_consult', {price: '700', unit: 'visit', description: '', active: true, revision: 1})).status, 200);
 });
 test('products can be retired and restored; clinical services cannot be retired', async () => {
-  const blocked = await request('PUT', '/catalog/srv_consult', {price: '500', unit: 'visit', description: '', active: false, revision: 0});
+  const blocked = await request('PUT', '/catalog/srv_consult', {price: '500', unit: 'visit', description: '', active: false, revision: 0, reasonCode: 'discontinued', reasonNote: ''});
   assert.equal(blocked.status, 400);
   assert.match(blocked.data.error, /cannot be retired/);
-  const retired = await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: false, revision: 0});
+  const retired = await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: false, revision: 0, reasonCode: 'discontinued', reasonNote: ''});
   assert.equal(retired.status, 200);
   assert.equal(retired.data.item.active, false);
   assert.ok(!priceCatalog().some(i => i.id === 'product_probiotic'), 'retired items are not offered');
   const old = {catalogId: 'product_probiotic', name: 'Veterinary Probiotic & Prebiotic Paste', price: 750, qty: 1};
   assert.ok(canonicalInvoice([old], priceCatalog({includeRetired: true})), 'but they stay billable on visits that carry them');
-  assert.equal((await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: true, revision: 1})).status, 200);
+  assert.equal((await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: true, revision: 1, reasonCode: 'offered_again', reasonNote: ''})).status, 200);
   assert.ok(priceCatalog().some(i => i.id === 'product_probiotic'));
   assert.equal((await request('PUT', '/catalog/not_real', {price: '1', unit: 'x', description: '', active: true, revision: 0})).status, 404);
   assert.equal((await request('PUT', '/catalog/product_probiotic', {price: '-1', unit: 'x', description: '', active: true, revision: 2})).status, 400);
+});
+test('retiring or restoring needs a listed reason; other edits do not', async () => {
+  const noReason = await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: false, revision: 0});
+  assert.equal(noReason.status, 400);
+  const badReason = await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: false, revision: 0, reasonCode: 'nope'});
+  assert.equal(badReason.status, 400);
+  const other = await request('PUT', '/catalog/product_probiotic', {price: '750', unit: 'item / package', description: '', active: false, revision: 0, reasonCode: 'other', reasonNote: ''});
+  assert.equal(other.status, 400);
+  const priceOnly = await request('PUT', '/catalog/product_probiotic', {price: '760', unit: 'item / package', description: '', active: true, revision: 0});
+  assert.equal(priceOnly.status, 200);
 });

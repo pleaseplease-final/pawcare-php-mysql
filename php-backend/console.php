@@ -11,6 +11,10 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/rules.php';
 
 $pdo = Database::getConnection();
+require_once __DIR__ . '/config/schema.php';
+require_once __DIR__ . '/config/reasons.php';
+require_once __DIR__ . '/config/reminders.php';
+Schema::ensure($pdo);
 $role = $currentUser['role'];
 
 // Who may do what. Mirrors the permission table in the README.
@@ -18,7 +22,10 @@ const PERMISSIONS = [
     'owners'       => ['admin' => 'crud', 'assistant' => 'cru', 'vet' => 'r'],
     'pets'         => ['admin' => 'crud', 'assistant' => 'cru', 'vet' => 'cru'],
     'appointments' => ['admin' => 'crud', 'assistant' => 'cru', 'vet' => 'cru'],
-    'users'        => ['admin' => 'crud'],
+    // a = deactivate / reactivate / unlock / retire / restore (soft delete with a reason). Nothing here is hard-deleted.
+    'users'        => ['admin' => 'crua'],
+    'catalog'      => ['admin' => 'crua'],
+    'reminders'    => ['admin' => 'rx', 'assistant' => 'r', 'vet' => 'r'],
     'account'      => ['admin' => 'u', 'assistant' => 'u', 'vet' => 'u'],
 ];
 function can(string $page, string $op): bool {
@@ -39,7 +46,7 @@ function like(string $q): string { return '%' . addcslashes($q, '%_\\') . '%'; }
 
 $pages = array_keys(array_filter(PERMISSIONS, fn($roles) => isset($roles[$role])));
 $page = in_array($_GET['page'] ?? 'owners', $pages, true) ? ($_GET['page'] ?? 'owners') : $pages[0];
-$action = in_array($_GET['do'] ?? 'list', ['list', 'new', 'edit'], true) ? ($_GET['do'] ?? 'list') : 'list';
+$action = in_array($_GET['do'] ?? 'list', ['list', 'new', 'edit', 'access'], true) ? ($_GET['do'] ?? 'list') : 'list';
 if ($page === 'account') $action = 'edit';
 $id = (string) ($_GET['id'] ?? '');
 $errors = [];
@@ -54,17 +61,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'logou
     $old = array_map(fn($v) => is_string($v) ? trim($v) : $v, $_POST);
 
     try {
+        if (in_array($op, ['review', 'confirm', 'back'], true) && isset(ACCESS_PAGES[$page])) {
+            $flowView = accessFlow($page, $id, (string) ($_POST['act'] ?? ''), $_POST, $op);
+            if ($flowView['state'] === 'done') { flash('ok', $flowView['message']); back($page); }
+            if ($flowView['state'] === 'blocked') { flash('err', $flowView['message']); back($page); }
+            http_response_code($flowView['state'] === 'form' && !empty($flowView['errors']) ? 422 : 200);
+            $action = 'access';
+            goto render;
+        }
+        if ($op === 'run' && $page === 'reminders' && can('reminders', 'x')) {
+            $counts = Reminders::run($pdo);
+            audit("Ran vaccination reminders: {$counts['sent']} sent, {$counts['failed']} failed");
+            flash('ok', "Reminder run finished: {$counts['sent']} sent, {$counts['failed']} failed, {$counts['checked']} boosters checked.");
+            back('reminders');
+        }
         if ($op === 'delete') {
             if (!can($page, 'd')) { http_response_code(403); flash('err', 'Your role cannot delete this record.'); back($page); }
             $message = deleteRecord($page, $id);
             flash($message[0], $message[1]);
             back($page);
-        }
-        if ($op === 'unlock' && $page === 'users' && can('users', 'u')) {
-            $pdo->prepare('UPDATE users SET is_locked = 0, failed_login_attempts = 0, lockout_until = NULL WHERE id = ?')->execute([$id]);
-            audit("Unlocked account {$id}");
-            flash('ok', 'Account unlocked.');
-            back('users');
         }
         if ($page === 'account') {
             require_once __DIR__ . '/controllers/AuthController.php';
@@ -145,6 +160,28 @@ function saveRecord(string $page, ?string $id, array $in): array {
                 flash('ok', 'Appointment updated.');
             }
             return [];
+        case 'catalog':
+            $errors = Rules::catalog($pdo, $in, $id);
+            if ($id !== null && !$errors) {
+                $current = rows('SELECT revision FROM clinic_catalog_items WHERE id = ?', [$id])[0] ?? null;
+                if (!$current) return ['form' => 'This item no longer exists.'];
+                if ((int) ($in['rev'] ?? -1) !== (int) $current['revision']) return ['form' => 'This item was changed by someone else. Reload it and review the current details.'];
+            }
+            if ($errors) return $errors;
+            $by = trim($currentUser['first_name'] . ' ' . $currentUser['last_name']);
+            if ($id === null) {
+                $new = catalogId($in['name'], $in['category']);
+                $pdo->prepare('INSERT INTO clinic_catalog_items (id, name, category, price, unit, description, active, built_in, revision, updated_by) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 0, ?)')
+                    ->execute([$new, $in['name'], $in['category'], $in['price'], $in['unit'], $in['description'] ?? '', $by]);
+                audit("Added price list item {$new} \"{$in['name']}\" ({$in['category']}) at ₱{$in['price']}");
+                flash('ok', 'Item added to the price list.');
+            } else {
+                $pdo->prepare('UPDATE clinic_catalog_items SET price = ?, unit = ?, description = ?, revision = revision + 1, updated_by = ? WHERE id = ?')
+                    ->execute([$in['price'], $in['unit'], $in['description'] ?? '', $by, $id]);
+                audit("Updated price list item {$id}");
+                flash('ok', 'Price list item updated.');
+            }
+            return [];
         case 'users':
             $errors = Rules::user($pdo, $in, $id);
             $birthday = (string) ($in['birthday'] ?? '');
@@ -211,9 +248,10 @@ function deleteRecord(string $page, string $id): array {
 
 /* ------------------------------------------------------------------ views ------------------------------------------------------------------ */
 render:
+require_once __DIR__ . '/console_access.php';
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
-$titles = ['owners' => 'Owners', 'pets' => 'Patients', 'appointments' => 'Appointments', 'users' => 'Staff accounts', 'account' => 'My account'];
+$titles = ['owners' => 'Owners', 'pets' => 'Patients', 'appointments' => 'Appointments', 'users' => 'User accounts', 'catalog' => 'Services & products', 'reminders' => 'Reminders', 'account' => 'My account'];
 
 function field(string $name, string $label, array $values, array $errors, array $attrs = [], string $type = 'text', array $options = []): void {
     $value = (string) ($values[$name] ?? '');
@@ -274,6 +312,16 @@ function form(string $page, ?string $id, array $values, array $errors): void {
             field('status', 'Status', $values + ['status' => 'Scheduled'], $errors, ['required' => true], 'select', array_combine(Rules::APPT_STATUSES, Rules::APPT_STATUSES));
             field('amount', 'Amount (₱)', $values + ['amount' => '600'], $errors, ['min' => '0', 'max' => '1000000', 'step' => '0.01', 'inputmode' => 'decimal'], 'number');
             break;
+        case 'catalog':
+            if (!$creating) echo '<input type="hidden" name="rev" value="' . (int) ($values['revision'] ?? 0) . '">';
+            field('name', 'Item name', $values, $errors, ['required' => true, 'maxlength' => 80] + ($creating ? [] : ['readonly' => true]));
+            if ($creating) field('category', 'Category', $values, $errors, ['required' => true], 'select', array_merge(array_combine(Rules::SERVICE_CATEGORIES, Rules::SERVICE_CATEGORIES), array_combine(Rules::PRODUCT_CATEGORIES, Rules::PRODUCT_CATEGORIES)));
+            else field('category', 'Category', $values, $errors, ['readonly' => true]);
+            field('price', 'Price (₱)', $values, $errors, ['required' => true, 'inputmode' => 'decimal', 'data-rule' => 'money']);
+            field('unit', 'Unit', $values + ['unit' => 'item / package'], $errors, ['required' => true, 'maxlength' => 40]);
+            field('description', 'Description (optional)', $values, $errors, ['maxlength' => 200], 'textarea');
+            if (!$creating) echo '<p class="sub" style="grid-column:1/-1">The name and category stay fixed so saved bills keep matching. A new price applies to new bills only.</p>';
+            break;
         case 'account':
             echo '<p class="sub" style="grid-column:1/-1;color:#64748b">Use at least 12 characters with an uppercase letter, a lowercase letter, a number and a symbol. It must differ from your current password and must not contain your email name.</p>';
             field('cur', 'Current password', [], $errors, ['required' => true, 'maxlength' => 128, 'autocomplete' => 'current-password'], 'password');
@@ -300,6 +348,7 @@ function listView(string $page): void {
     $offset = ($pageNo - 1) * $limit;
     $where = ['1=1']; $params = [];
     $filter = (string) ($_GET['filter'] ?? '');
+    $status = '';
     $from = (string) ($_GET['from'] ?? ''); $to = (string) ($_GET['to'] ?? '');
     switch ($page) {
         case 'owners':
@@ -322,11 +371,21 @@ function listView(string $page): void {
             $count = 'SELECT COUNT(*) FROM appointments a JOIN pets p ON p.id = a.pet_id JOIN owners o ON o.id = p.owner_id'; $order = 'a.date DESC, a.time DESC';
             $cols = ['date' => 'Date', 'time' => 'Time', 'pet' => 'Patient', 'owner' => 'Owner', 'reason' => 'Reason', 'status' => 'Status', 'amount' => 'Amount'];
             break;
+        case 'catalog':
+            $status = (string) ($_GET['status'] ?? 'active');
+            $select = 'SELECT id, name, category, price, unit, description, active, built_in, revision FROM clinic_catalog_items';
+            if ($q !== '') { $where[] = '(name LIKE ? OR category LIKE ? OR description LIKE ?)'; array_push($params, like($q), like($q), like($q)); }
+            if (in_array($filter, array_merge(Rules::SERVICE_CATEGORIES, Rules::PRODUCT_CATEGORIES), true)) { $where[] = 'category = ?'; $params[] = $filter; }
+            if ($status === 'active') $where[] = 'active = 1'; elseif ($status === 'retired') $where[] = 'active = 0';
+            $count = 'SELECT COUNT(*) FROM clinic_catalog_items'; $order = 'category, name'; $cols = ['name' => 'Item', 'category' => 'Category', 'unit' => 'Unit', 'price' => 'Price', 'status' => 'Status'];
+            break;
         default:
-            $select = 'SELECT id, first_name, last_name, email, role, mobile_number, is_locked FROM users';
+            $status = (string) ($_GET['status'] ?? 'all');
+            $select = 'SELECT id, first_name, last_name, email, role, mobile_number, is_locked, is_active, access_reason FROM users';
+            if ($status === 'active') $where[] = 'is_active = 1'; elseif ($status === 'deactivated') $where[] = 'is_active = 0'; elseif ($status === 'locked') $where[] = 'is_locked = 1 AND is_active = 1';
             if ($q !== '') { $where[] = '(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)'; array_push($params, like($q), like($q), like($q)); }
             if (in_array($filter, Rules::ROLES, true)) { $where[] = 'role = ?'; $params[] = $filter; }
-            $count = 'SELECT COUNT(*) FROM users'; $order = 'first_name'; $cols = ['name' => 'Name', 'email' => 'Email', 'role' => 'Role', 'mobile_number' => 'Mobile', 'status' => 'Status'];
+            $count = 'SELECT COUNT(*) FROM users'; $order = 'first_name'; $cols = ['name' => 'Name', 'email' => 'Email', 'role' => 'Role', 'mobile_number' => 'Mobile', 'status' => 'Status', 'access_reason' => 'Last access note'];
     }
     $clause = ' WHERE ' . implode(' AND ', $where);
     $total = (int) one($count . $clause, $params);
@@ -334,11 +393,19 @@ function listView(string $page): void {
 
     echo '<form method="GET" class="card filters"><input type="hidden" name="page" value="' . e($page) . '">';
     echo '<div class="fld"><label for="q">Search</label><input id="q" name="q" value="' . e($q) . '" maxlength="60" placeholder="Type to search"></div>';
-    $options = ['pets' => Rules::SPECIES, 'appointments' => Rules::APPT_STATUSES, 'users' => Rules::ROLES][$page] ?? [];
-    if ($options) { echo '<div class="fld"><label for="filter">' . ($page === 'pets' ? 'Species' : ($page === 'users' ? 'Role' : 'Status')) . '</label><select id="filter" name="filter"><option value="">All</option>'; foreach ($options as $o) echo '<option' . ($o === $filter ? ' selected' : '') . '>' . e($o) . '</option>'; echo '</select></div>'; }
+    $options = ['pets' => Rules::SPECIES, 'appointments' => Rules::APPT_STATUSES, 'users' => Rules::ROLES, 'catalog' => array_merge(Rules::SERVICE_CATEGORIES, Rules::PRODUCT_CATEGORIES)][$page] ?? [];
+    if (in_array($page, ['users', 'catalog'], true)) echo '<input type="hidden" name="status" value="' . e($status) . '">';
+    if ($options) { echo '<div class="fld"><label for="filter">' . ($page === 'pets' ? 'Species' : ($page === 'users' ? 'Role' : ($page === 'catalog' ? 'Category' : 'Status'))) . '</label><select id="filter" name="filter"><option value="">All</option>'; foreach ($options as $o) echo '<option' . ($o === $filter ? ' selected' : '') . '>' . e($o) . '</option>'; echo '</select></div>'; }
     if ($page === 'appointments') echo '<div class="fld"><label for="from">From</label><input id="from" type="date" name="from" value="' . e($from) . '"></div><div class="fld"><label for="to">To</label><input id="to" type="date" name="to" value="' . e($to) . '"></div>';
     echo '<div class="fld"><label>&nbsp;</label><span><button class="btn" type="submit">Search</button> <a class="btn ghost" href="console.php?page=' . e($page) . '">Reset</a></span></div></form>';
 
+    if ($page === 'users') {
+        $counts = ['all' => (int) one('SELECT COUNT(*) FROM users'), 'active' => (int) one('SELECT COUNT(*) FROM users WHERE is_active = 1'), 'deactivated' => (int) one('SELECT COUNT(*) FROM users WHERE is_active = 0'), 'locked' => (int) one('SELECT COUNT(*) FROM users WHERE is_locked = 1 AND is_active = 1')];
+        chips($page, 'status', ['all' => 'All accounts', 'active' => 'Active', 'deactivated' => 'Deactivated', 'locked' => 'Locked'], $status, $counts, ['q' => $q, 'filter' => $filter]);
+    } elseif ($page === 'catalog') {
+        $counts = ['active' => (int) one('SELECT COUNT(*) FROM clinic_catalog_items WHERE active = 1'), 'retired' => (int) one('SELECT COUNT(*) FROM clinic_catalog_items WHERE active = 0'), 'all' => (int) one('SELECT COUNT(*) FROM clinic_catalog_items')];
+        chips($page, 'status', ['active' => 'Active', 'retired' => 'Retired', 'all' => 'All items'], $status, $counts, ['q' => $q, 'filter' => $filter]);
+    }
     echo '<div class="card"><div class="bar"><b>' . $total . ' ' . ($total === 1 ? 'record' : 'records') . '</b>';
     if (can($page, 'c')) echo '<a class="btn" href="console.php?page=' . e($page) . '&do=new">+ Add</a>';
     echo '</div>';
@@ -350,14 +417,27 @@ function listView(string $page): void {
         echo '<tr>';
         foreach ($cols as $key => $label) {
             if ($page === 'users' && $key === 'name') $cell = trim($r['first_name'] . ' ' . $r['last_name']);
-            elseif ($page === 'users' && $key === 'status') $cell = $r['is_locked'] ? 'Locked' : 'Active';
+            elseif ($page === 'users' && $key === 'status') $cell = !(int) $r['is_active'] ? 'Deactivated' : ($r['is_locked'] ? 'Locked' : 'Active');
+            elseif ($page === 'users' && $key === 'access_reason') $cell = $r['access_reason'] ?: '—';
+            elseif ($page === 'catalog' && $key === 'status') $cell = (int) $r['active'] ? 'Active' : 'Retired';
+            elseif ($page === 'catalog' && $key === 'price') $cell = '₱' . number_format((float) $r['price'], 2);
             elseif ($key === 'amount') $cell = '₱' . number_format((float) $r['amount'], 2);
             else $cell = $r[$key] ?? '';
             echo '<td data-label="' . e($label) . '">' . e($cell) . '</td>';
         }
         echo '<td class="act">';
         if (can($page, 'u')) echo '<a class="btn sm ghost" href="console.php?page=' . e($page) . '&do=edit&id=' . urlencode($r['id']) . '">Edit</a> ';
-        if ($page === 'users' && can('users', 'u') && !empty($r['is_locked'])) echo postButton($page, $r['id'], 'unlock', 'Unlock', 'sm ghost');
+        if ($page === 'users' && can('users', 'a') && (int) $r['is_active'] && !empty($r['is_locked'])) echo '<a class="btn sm ghost" href="console.php?page=users&do=access&act=unlock&id=' . urlencode($r['id']) . '">Unlock</a> ';
+        if ($page === 'users' && can('users', 'a')) {
+            if ($r['id'] === $currentUser['id']) echo '<span class="you">You</span>';
+            elseif ((int) $r['is_active']) echo '<a class="btn sm danger" href="console.php?page=users&do=access&act=deactivate&id=' . urlencode($r['id']) . '">Deactivate</a>';
+            else echo '<a class="btn sm" href="console.php?page=users&do=access&act=reactivate&id=' . urlencode($r['id']) . '">Reactivate</a>';
+        }
+        if ($page === 'catalog' && can('catalog', 'a')) {
+            if ((int) $r['active'] && str_starts_with($r['id'], 'srv_')) echo '<span class="you" title="Clinical services cannot be retired. Change the price instead.">Core service</span>';
+            elseif ((int) $r['active']) echo '<a class="btn sm danger" href="console.php?page=catalog&do=access&act=retire&id=' . urlencode($r['id']) . '">Retire</a>';
+            else echo '<a class="btn sm" href="console.php?page=catalog&do=access&act=restore&id=' . urlencode($r['id']) . '">Restore</a>';
+        }
         if (can($page, 'd')) echo postButton($page, $r['id'], 'delete', 'Delete', 'sm danger', 'Delete this record? This cannot be undone.');
         echo '</td></tr>';
     }
@@ -372,6 +452,15 @@ function listView(string $page): void {
         echo '</nav>';
     }
     echo '</div>';
+}
+/** Filter chips (links) with counts. */
+function chips(string $page, string $param, array $options, string $current, array $counts, array $keep): void {
+    echo '<nav class="chips" aria-label="Filter by status">';
+    foreach ($options as $value => $label) {
+        $href = 'console.php?' . http_build_query(array_filter(['page' => $page, $param => $value] + $keep, fn($v) => $v !== ''));
+        echo '<a class="chip' . ($value === $current ? ' on' : '') . '" href="' . e($href) . '"' . ($value === $current ? ' aria-current="true"' : '') . '>' . e($label) . ' <b>' . (int) ($counts[$value] ?? 0) . '</b></a>';
+    }
+    echo '</nav>';
 }
 function postButton(string $page, string $id, string $op, string $label, string $class, string $confirm = ''): string {
     return '<form method="POST" action="console.php?page=' . e($page) . '" class="inline"' . ($confirm ? ' onsubmit="return confirm(' . e(json_encode($confirm)) . ')"' : '') . '>'
@@ -414,6 +503,18 @@ function postButton(string $page, string $id, string $op, string $label, string 
     .flash { padding:10px 14px; border-radius:12px; font-weight:600; margin-bottom:12px; } .flash.ok { background:#dcfce7; color:#14532d; } .flash.err { background:#fef2f2; color:#b91c1c; }
     .tw { overflow-x:auto; } table { width:100%; border-collapse:collapse; } th { text-align:left; background:#f3f6ff; color:#4b5b82; font-size:13px; padding:10px 12px; }
     td { padding:10px 12px; border-top:1px solid #edf1fa; font-size:14px; vertical-align:middle; } td.act { white-space:nowrap; text-align:right; } form.inline { display:inline; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { display:inline-flex; align-items:center; gap:8px; padding:7px 14px; border-radius:99px; background:#fff; border:1px solid var(--line); color:#33466f; font-weight:600; font-size:13.5px; text-decoration:none; }
+    .chip b { background:#e4ebfb; color:#1e3a8a; border-radius:99px; padding:1px 8px; font-size:12px; }
+    .chip.on { background:#ffe28a; border-color:#ffd24d; color:#1e3a8a; } .chip.on b { background:#fff; }
+    .steps { display:flex; gap:8px; margin-bottom:14px; } .steps span { padding:5px 12px; border-radius:99px; background:#eef1f8; color:#64748b; font-size:13px; font-weight:600; } .steps .on { background:var(--blue); color:#fff; }
+    .sub { color:#64748b; margin-bottom:12px; } .reasonline { margin:12px 0; padding:10px 14px; border-radius:12px; background:#eef3ff; } .effects { margin:8px 0 14px 18px; color:#33466f; line-height:1.7; }
+    .you { color:#64748b; font-size:13px; padding:0 8px; } code { background:#eef1f8; padding:1px 6px; border-radius:6px; font-size:13px; }
+    .pill { padding:5px 12px; border-radius:99px; font-weight:700; font-size:13px; } .pill.ok { background:#dcfce7; color:#15803d; } .pill.warn { background:#fef3c7; color:#b45309; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:14px 0; } .metrics>div { border:1px solid var(--line); border-radius:16px; padding:14px 16px; background:#f8faff; }
+    .metrics span { display:block; color:#64748b; font-weight:600; font-size:13px; } .metrics b { display:block; font-size:28px; color:var(--navy); margin:4px 0; } .metrics b.small { font-size:17px; } .metrics small { color:#64748b; }
+    .metrics .ok { background:#f0fdf4; border-color:#bbf0cc; } .metrics .warn { background:#fffbeb; border-color:#f1dd8a; } .providers { margin:8px 0 14px; color:#475569; } .okt { color:var(--ok); } .badt { color:var(--bad); }
+    .filters .fld { margin-bottom:0; } .filters { align-items:flex-end; }
     .pager { display:flex; gap:12px; align-items:center; justify-content:center; margin-top:14px; } .empty { color:#64748b; padding:20px; text-align:center; }
     @media (max-width:700px) { thead { display:none; } tr { display:block; border:1px solid var(--line); border-radius:14px; margin-bottom:10px; } td { display:flex; justify-content:space-between; gap:10px; border:0; } td::before { content:attr(data-label); font-weight:700; color:#64748b; } td.act { justify-content:flex-end; } }
   </style>
@@ -432,10 +533,17 @@ function postButton(string $page, string $id, string $op, string $label, string 
   <h1><?= e($titles[$page]) ?><?= $action === 'new' ? ' · Add' : ($action === 'edit' ? ' · Edit' : '') ?></h1>
   <?php if ($flash): ?><p class="flash <?= e($flash[0]) ?>" role="status"><?= e($flash[1]) ?></p><?php endif; ?>
   <?php
-  if ($action === 'new' && can($page, 'c')) {
+  if ($page === 'reminders') {
+      remindersView();
+  } elseif ($action === 'access' && can($page, 'a')) {
+      $act = (string) ($flowView['act'] ?? $_GET['act'] ?? '');
+      $flow = $flowView ?? accessFlow($page, $id, $act, [], 'back');
+      if (($flow['state'] ?? '') === 'blocked') echo '<p class="flash err" role="alert">' . e($flow['message']) . '</p><p><a class="btn ghost" href="console.php?page=' . e($page) . '">Back to the list</a></p>';
+      else accessView($page, $id, $act, $flow);
+  } elseif ($action === 'new' && can($page, 'c')) {
       form($page, null, $old, $errors);
   } elseif ($action === 'edit' && can($page, 'u')) {
-      $tables = ['owners' => 'owners', 'pets' => 'pets', 'appointments' => 'appointments', 'users' => 'users'];
+      $tables = ['owners' => 'owners', 'pets' => 'pets', 'appointments' => 'appointments', 'users' => 'users', 'catalog' => 'clinic_catalog_items'];
       $record = $page === 'account' ? [] : ($old ?: (rows("SELECT * FROM {$tables[$page]} WHERE id = ?", [$id])[0] ?? null));
       if ($record === null) echo '<p class="flash err">That record no longer exists.</p>';
       else { if ($page === 'users') unset($record['password_hash']); form($page, $page === 'account' ? $currentUser['id'] : $id, $record, $errors); }
@@ -452,11 +560,13 @@ function postButton(string $page, string $id, string $op, string $label, string 
     petname: [/^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .'\-]*$/, "Use letters, numbers and . ' - only."],
     phone: [/^(09|\+639)\d{9}$/, 'Use 09XXXXXXXXX or +639XXXXXXXXX.'],
     email: [/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Enter a valid email address.'],
+    money: [/^\d+(\.\d{1,2})?$/, 'Use numbers only, with at most 2 decimal places.'],
     password: [/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{12,72}$/, 'At least 12 characters with upper, lower, a number and a symbol; no spaces.']
   };
   function check(el) {
     var box = el.closest('.fld'), msg = box.querySelector('.msg'), v = el.value.trim(), text = '';
-    if (el.hasAttribute('required') && v === '') text = 'This field is required.';
+    var cond = el.getAttribute('data-required-if'), needed = el.hasAttribute('required') || (cond && document.getElementById(cond.split('=')[0]) && document.getElementById(cond.split('=')[0]).value === cond.split('=')[1]);
+    if (needed && v === '') text = cond && !el.hasAttribute('required') ? 'Explain the reason (required for Other).' : 'This field is required.';
     else if (v !== '') {
       var rule = rules[el.getAttribute('data-rule')];
       if (rule && !rule[0].test(el.getAttribute('data-rule') === 'phone' ? v.replace(/[\s-]/g, '') : v)) text = rule[1];
@@ -475,7 +585,7 @@ function postButton(string $page, string $id, string $op, string $label, string 
   document.querySelectorAll('form[data-live]').forEach(function (form) {
     var fields = form.querySelectorAll('input:not([type=hidden]), select, textarea');
     fields.forEach(function (el) {
-      el.addEventListener('input', function () { check(el); fields.forEach(function (other) { if (other !== el && other.value !== '' && (other.getAttribute('data-match') || other.getAttribute('data-differs'))) check(other); }); });
+      el.addEventListener('input', function () { check(el); fields.forEach(function (other) { if (other !== el && other.value !== '' && (other.getAttribute('data-match') || other.getAttribute('data-differs') || other.getAttribute('data-required-if'))) check(other); }); });
       el.addEventListener('blur', function () { check(el); });
     });
     form.addEventListener('submit', function (event) {

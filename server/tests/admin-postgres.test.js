@@ -23,7 +23,7 @@ for(const role of ['admin','vet','assistant','owner']){
  await query(`INSERT INTO users(id,first_name,last_name,birthday,password_hash,email,role,vet_id,mobile_number,email_verified_at,mobile_verified) VALUES($1,'Synthetic',$1,'1990-01-01',$2,$3,$1,$4,'+639170000001',NOW(),true)`,[role,hash,`${role}@example.invalid`,role==='vet'?'v1':null]);
  await query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '1 day')",[sha256(role),role]);
 }
-const change=(id,action,revision,reason='Synthetic governance reason')=>call('admin','POST',`/admin/staff/${id}/access`,{action,revision,reason,actorRole:'owner'});
+const change=(id,action,revision,reasonCode={deactivate:'security',reactivate:'returned',unlock:'forgot_password'}[action])=>call('admin','POST',`/admin/staff/${id}/access`,{action,revision,reasonCode,reasonNote:'Synthetic governance reason',actorRole:'owner'});
 test('administrator staff list is live, schema-local and excludes all credentials',async()=>{
  const result=await call('admin','GET','/admin/staff');assert.equal(result.status,200);assert.equal(result.data.accountCount,4);assert.equal(result.data.staff.length,2);
  assert.equal(result.data.staff.find(u=>u.id==='vet').vetId,'v1');
@@ -31,7 +31,7 @@ test('administrator staff list is live, schema-local and excludes all credential
  assert.equal((await query("SELECT n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid='users'::regclass")).rows[0].nspname,schema);
 });
 test('anonymous and other roles cannot read or mutate governance, even with spoofed roles',async()=>{
- for(const token of [null,'owner','vet','assistant'])for(const [method,path,body]of [['GET','/admin/staff'],['GET','/admin/audit'],['POST','/admin/staff/vet/access',{action:'deactivate',revision:0,reason:'Spoofed',actorRole:'admin'}]])assert.equal((await call(token,method,path,body)).status,token?403:401);
+ for(const token of [null,'owner','vet','assistant'])for(const [method,path,body]of [['GET','/admin/staff'],['GET','/admin/audit'],['POST','/admin/staff/vet/access',{action:'deactivate',revision:0,reasonCode:'security',reasonNote:'Spoofed',actorRole:'admin'}]])assert.equal((await call(token,method,path,body)).status,token?403:401);
  for(const id of ['owner','admin'])assert.equal((await change(id,'deactivate',0)).status,403);
 });
 test('staff email availability checks all roles privately and preserves invitation replacement',async()=>{
@@ -86,7 +86,7 @@ test('invitations validate roles, preserve the admin session and can be revoked 
  for(const body of [{role:'admin',name:'New Staff',email:'new@example.invalid'},{role:'vet',name:'',email:'new@example.invalid'},{role:'vet',name:'New Staff',email:'invalid'}])assert.equal((await call('admin','POST','/auth/staff/invite',body)).status,400);
  const invited=await call('admin','POST','/auth/staff/invite',{role:'vet',name:'New Staff',email:'new@example.invalid'});assert.equal(invited.status,200);assert.equal(invited.data.token,undefined);assert.equal(invited.data.delivery,'accepted');assert.match(invited.data.inviteLink,/\?invite=/);assert.equal((await call('admin','GET','/auth/me')).status,200);
  const list=await call('admin','GET','/admin/staff');const invitation=list.data.invitations.find(i=>i.email==='new@example.invalid');assert.equal(invitation.status,'Pending');assert.doesNotMatch(JSON.stringify(invitation),/token/);
- assert.equal((await call('admin','POST',`/admin/invitations/${invitation.id}/revoke`,{reason:'Synthetic replacement'})).status,200);
+ assert.equal((await call('admin','POST',`/admin/invitations/${invitation.id}/revoke`,{reasonCode:'replace',reasonNote:'Synthetic replacement'})).status,200);
  const token=new URL(invited.data.inviteLink).searchParams.get('invite');assert.equal((await call(null,'GET',`/auth/staff/invite-info?token=${token}`)).status,404);
  assert.equal((await call(null,'POST','/auth/staff/accept-invite',{token,firstName:'New',lastName:'Staff',birthday:'1990-01-01',mobileNumber:'+639170000001',password,houseStreet:'12 Test Street',city:'Makati',state:'Metro Manila',zipCode:'1200'})).status,409);
 });

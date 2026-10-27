@@ -32,7 +32,7 @@ after(() => new Promise(resolve => server.close(resolve)));
 const row = (id, role, extra = {}) => ({id, first_name: id, last_name: 'Test', email: `${id}@example.test`, role, vet_id: null, is_active: true, is_locked: false, lockout_until: null, mobile_verified: true, access_revision: 0, access_reason: '', ...extra});
 beforeEach(() => { users = [row('a1', 'admin'), row('a2', 'admin'), row('v1', 'vet')]; audits = []; });
 const call = async (method, path, body) => { const res = await fetch(`http://127.0.0.1:${server.address().port}/api/admin${path}`, {method, headers: {'Content-Type': 'application/json'}, ...(body ? {body: JSON.stringify(body)} : {})}); return {status: res.status, data: await res.json()}; };
-const act = (id, action) => call('POST', `/staff/${id}/access`, {action, reason: 'Synthetic review', revision: 0});
+const act = (id, action, extra = {}) => call('POST', `/staff/${id}/access`, {action, reasonCode: {deactivate: 'security', reactivate: 'returned', unlock: 'forgot_password'}[action], reasonNote: 'Synthetic review', revision: 0, ...extra});
 
 test('the staff list includes administrators and marks the signed-in account', async () => {
   const {data} = await call('GET', '/staff');
@@ -41,7 +41,7 @@ test('the staff list includes administrators and marks the signed-in account', a
 test('an administrator can deactivate another administrator, with a reason in the audit trail', async () => {
   assert.equal((await act('a2', 'deactivate')).status, 200);
   assert.equal(users.find(u => u.id === 'a2').is_active, false);
-  assert.match(audits.at(-1), /Staff access deactivate: a2 \(admin\).*Synthetic review/);
+  assert.match(audits.at(-1), /Staff access deactivate: a2 \(admin\).*Security concern or suspected misuse: Synthetic review/);
 });
 test('nobody can change their own access', async () => {
   const result = await act('a1', 'deactivate');
@@ -62,4 +62,14 @@ test('owners and unknown accounts are not managed here', async () => {
   users.push(row('o1', 'owner'));
   assert.equal((await act('o1', 'deactivate')).status, 403);
   assert.equal((await act('missing', 'deactivate')).status, 403);
+});
+test('a reason must be picked from the list, and Other needs an explanation', async () => {
+  Object.assign(users.find(u => u.id === 'a2'), {is_active: false, access_revision: 0});
+  assert.equal((await act('a2', 'reactivate', {reasonCode: undefined})).status, 400);
+  assert.equal((await act('a2', 'reactivate', {reasonCode: 'made-up'})).status, 400);
+  assert.equal((await act('a2', 'reactivate', {reasonCode: 'other', reasonNote: ''})).status, 400);
+  assert.equal((await act('a2', 'reactivate', {reasonCode: 'other', reasonNote: '12345'})).status, 400);
+  assert.equal(users.find(u => u.id === 'a2').is_active, false, 'nothing changed after the rejected reasons');
+  assert.equal((await act('a2', 'reactivate', {reasonCode: 'other', reasonNote: 'Moved back to this branch'})).status, 200);
+  assert.match(audits.at(-1), /reason: Moved back to this branch/);
 });
