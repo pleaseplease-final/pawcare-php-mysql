@@ -8,11 +8,21 @@ export const numberError = (value,label,min,max,{required=true,integer=false}={}
   const n = Number(value);
   return !Number.isFinite(n) || n<min || n>max || (integer && !Number.isInteger(n)) ? `${label} must be ${integer?'a whole number ':''}between ${min} and ${max}.` : '';
 };
+// An admitted patient is rechecked within hours, so the next observation must be in the future and within a week.
+export const OBSERVATION_MAX_DAYS = 7;
+export const manilaInputValue = (ms = Date.now()) => new Date(ms + 8 * 3600000).toISOString().slice(0, 16);
+export function observationTimeError(value, now = Date.now()) {
+  const when = medicineEventTime(value);
+  if (!Number.isFinite(when)) return 'Enter the next observation date and time (Manila).';
+  if (when <= now) return 'Choose a future observation time.';
+  if (when > now + OBSERVATION_MAX_DAYS * 86400000) return `The next observation must be within ${OBSERVATION_MAX_DAYS} days. Admitted patients are rechecked in hours, not months or years.`;
+  return '';
+}
 export function admissionErrors(form,{mode,vet,visits=[]}) {
   const create=mode==='create', discharge=mode==='discharge', release=mode==='release',consent=mode==='consent';
   return {
     ...(consent ? consentErrors(form,true) : !vet && mode==='update' ? consentErrors(form,false) : {}),
-    nextObservationAt:vet && !discharge && !release && (create || form.nextObservationAt || form.observationInstructions) ? !Number.isFinite(medicineEventTime(form.nextObservationAt)) ? 'Enter the next observation date and time (Manila).' : medicineEventTime(form.nextObservationAt)<=Date.now() ? 'Choose a future observation time.' : '' : '',
+    nextObservationAt:vet && !discharge && !release && (create || form.nextObservationAt || form.observationInstructions) ? observationTimeError(form.nextObservationAt) : '',
     observationInstructions:vet && !discharge && !release ? text(form.observationInstructions,'Observation instructions',1000,create || !!form.nextObservationAt) : '',
     apptId:create && !visits.some(v=>v.id===form.apptId) ? 'Choose an assigned consultation.' : '',
     clinicalNote:consent ? '' : text(form.clinicalNote,'Clinic note',3000,true),

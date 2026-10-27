@@ -15,7 +15,6 @@ import {
   SPECIES,
   BREEDS_BY_SPECIES,
   PET_COLORS,
-  RODENT_DENTAL_STATUS,
   NEUTERED,
   petText
 } from "./owner/Pets.jsx";
@@ -23,7 +22,7 @@ import { useLive, Field, onlyDigitsPlus, onlyDecimal, petAge } from "./owner/ui.
 import { CheckCircle2, ClipboardList, Printer, X } from "lucide-react";
 
 export default function InClinicRegistration({ db, setDb, me, onClose, onRegistered, existingOwner: initialOwner }) {
-  const {yesterday:YESTERDAY,oldest:OLDEST} = walkInBirthWindow();
+  const {latest:BIRTH_LATEST,oldest:OLDEST} = walkInBirthWindow();
   const inFlight = useRef(false);
   const [selectedOwnerId,setSelectedOwnerId]=useState(initialOwner?.id || '');
   const existingOwner=(db.owners || []).find(o=>o.id===selectedOwnerId);
@@ -47,7 +46,7 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
       neutered: "Not sure",
       color: "",
       customColor: "",
-      dentalOcclusion: "Not Evaluated Yet",
+      dentalOcclusion: "",
       notes: "",
       vetId: db.vets?.[0]?.id || '', serviceCategory:'consultation', vaccineId:'',
       hasExternalHistory:false, priorVaccines:[], externalClinicNotes:'',
@@ -96,7 +95,7 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
       species: newSpecies,
       breed: "",
       customBreed: "",
-      dentalOcclusion: newSpecies.includes("Rodent") ? "Not Evaluated Yet" : ""
+      dentalOcclusion: ""
     });
     setVaccineId('');
     if(serviceCategory === 'vaccination') f.set('reason','Vaccination consultation');
@@ -162,7 +161,7 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
       weight: Number(v.weight),
       color: finalColor,
       neutered: v.neutered,
-      dentalOcclusion: canonicalSpecies === "Rodent" ? v.dentalOcclusion : "",
+      dentalOcclusion: "",
       notes: v.notes.trim(),
       addToQueue: v.addToQueue,
       vetId,
@@ -190,7 +189,6 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
         ["Sex / birth date",`${payload.sex} / ${payload.birth}`],
         ["Weight",`${payload.weight} kg`],
         ["Color / neutered",`${payload.color || "Not provided"} / ${payload.neutered}`],
-        ["Dental status",payload.dentalOcclusion],
         ["Patient notes",payload.notes],
         ["Today’s arrival",payload.addToQueue ? `${db.vets?.find(v=>v.id===vetId)?.name || "Veterinarian unavailable"}: ${payload.reason}` : "No arrival requested"],
         ...(v.addToQueue && serviceCategory === "vaccination" ? [["Estimated vaccine price",vaccinePriceLabel(vaccineId,catalog)]] : []),
@@ -480,14 +478,14 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
                     label="Birth Date"
                     req
                     type="date"
-                    maxDate={YESTERDAY}
+                    maxDate={BIRTH_LATEST}
                     min={OLDEST}
                     value={v.birth}
                     onChange={x => f.set("birth", x)}
                     onBlur={() => f.blur("birth")}
                     error={f.show("birth")}
                     valid={f.ok("birth")}
-                    hint="Yesterday or earlier"
+                    hint="From Jan 1, 2000 up to today"
                   />
                   {ageDetails && (
                     <div style={{ fontSize: "calc(11px * var(--fs, 1))", color: "#1e3a8a", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "4px 8px", borderRadius: "6px", marginTop: "4px", fontWeight: 700 }}>
@@ -551,22 +549,6 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
                   />
                 )}
 
-                {canonicalSpecies === "Rodent" && (
-                  <div style={{ gridColumn: "span 2" }}>
-                    <Field
-                      id="dentalOcclusion"
-                      label="Dental / Occlusion Status (Rodent Protocol)"
-                      req
-                      type="select"
-                      value={v.dentalOcclusion}
-                      onChange={x => f.set("dentalOcclusion", x)}
-                      onBlur={() => f.blur("dentalOcclusion")}
-                      options={RODENT_DENTAL_STATUS.map(s => [s, s])}
-                      error={f.show("dentalOcclusion")}
-                      valid={f.ok("dentalOcclusion")}
-                    />
-                  </div>
-                )}
 
                 <div style={{ gridColumn: "span 2" }}>
                   <Field

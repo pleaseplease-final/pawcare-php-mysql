@@ -1,14 +1,13 @@
-import { today, plus } from './booking.js';
+import { today } from './booking.js';
+import { petBirthError, isRealDate, PET_BIRTH_EARLIEST } from './dateRules.js';
 import {addressError, externalHistoryErrors} from './externalHistory.js';
 import {vaccineChoiceError} from './vaccineBooking.js';
 import {normalizeSpecies} from './preventiveSchedule.js';
 
-export const walkInBirthWindow = () => { const date = today(); return {today:date,yesterday:plus(-1),oldest:`${Number(date.slice(0,4))-40}${date.slice(4)}`}; };
+// Pet birth dates run from 2000-01-01 up to and including today (a pet born today can be registered).
+export const walkInBirthWindow = () => { const date = today(); return {today:date,latest:date,oldest:PET_BIRTH_EARLIEST}; };
 export function validWalkInBirth(value) {
-  const {today:date,oldest} = walkInBirthWindow();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0,10) === value && value < date && value >= oldest;
+  return isRealDate(value) && !petBirthError(value, today());
 }
 export function savedWalkInRegistration(data, expected) {
   if (!data?.success || !data.owner?.id || !data.pet?.id || !data.pet.vaccinationCardId) throw new Error('The server did not confirm registration. Refresh clinic records before continuing.');
@@ -108,11 +107,9 @@ export function validateWalkInFields(v, {vets} = {}) {
   if (!v.sex) e.sex = "Choose male or female";
   else if (!["Male", "Female"].includes(v.sex)) e.sex = "Pick one from the list";
 
-  // 10. Birth date (Must be yesterday or earlier; never in the future)
-  if (!v.birth) e.birth = "Enter the birth date (yesterday or earlier)";
-  else if (!validWalkInBirth(v.birth)) e.birth = "Enter a valid birth date";
-  else if (v.birth >= TODAY) e.birth = "Birth date cannot be today or in the future. Please select yesterday or earlier";
-  else if (v.birth < OLDEST) e.birth = "That date is too far back. Check the year";
+  // 10. Birth date: a real date from January 1, 2000 up to today
+  const birthProblem = petBirthError(v.birth, TODAY);
+  if (birthProblem) e.birth = birthProblem;
 
   // 11. Weight
   const wt = String(v.weight ?? "").trim();
@@ -124,10 +121,6 @@ export function validateWalkInFields(v, {vets} = {}) {
   // 12. Neutered
   if (!v.neutered) e.neutered = "Choose spayed/neutered status";
 
-  // 13. Rodent Dental Occlusion
-  if (v.species && v.species.includes("Rodent")) {
-    if (!v.dentalOcclusion) e.dentalOcclusion = "Please select occlusion status";
-  }
 
   // 14. Notes
   const notes = (v.notes || "").trim();

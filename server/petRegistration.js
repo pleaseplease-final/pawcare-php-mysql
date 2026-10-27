@@ -4,6 +4,7 @@ import { query } from './db.js';
 import {externalHistoryErrors} from '../src/externalHistory.js';
 import { clinicClock, validDate } from './scheduling.js';
 import { petPlausibility } from '../src/petLimits.js';
+import { petBirthError } from '../src/dateRules.js';
 
 let ready;
 export function ensurePetRegistrationSchema() {
@@ -40,7 +41,6 @@ const speciesNames = new Map([
   ['Rodent','Rodent'],['Rodent (Hamster / Guinea Pig / etc.)','Rodent'],
   ['Avian','Avian'],['Bird','Avian'],['Avian (Bird)','Avian'],['Other','Other'],['Other / Exotic','Other']
 ]);
-const dentalStatuses = ['Normal / Aligned (Healthy Occlusion)','Incisor Overgrowth (Needs Trim)','Molar Spurs / Malocclusion (Needs Dental Burr)','Signs of Drooling / Wet Chin (Suspected Malocclusion)','Not Evaluated Yet'];
 // Extra species-aware sanity checks for new registrations and edits. Older saved requests are not re-judged at approval.
 export function validatePetPlausibility(data, body) {
   const errors = petPlausibility({species: data.species, weight: Number(body.weight), birth: body.birth, today: clinicClock().date});
@@ -64,12 +64,11 @@ export function validatePetRegistration(body) {
   if (species === 'Other' && (speciesOther.length < 3 || !/[A-Za-zÀ-ÿ]/.test(speciesOther))) throw registrationError('Describe the animal species using at least three characters.');
   if (!['Male','Female'].includes(body.sex)) throw registrationError('Choose male or female.');
   const today = clinicClock().date;
-  const oldest = `${Number(today.slice(0,4))-40}${today.slice(4)}`;
-  if (!validDate(body.birth) || body.birth >= today || body.birth < oldest) throw registrationError('Choose a real birth date within the past 40 years, before today.');
+  const birthProblem = petBirthError(body.birth, today);
+  if (birthProblem) throw registrationError(birthProblem);
   if (typeof body.weight !== 'number' || !Number.isFinite(body.weight) || body.weight < 0.05 || body.weight > 120 || Math.abs(body.weight*100-Math.round(body.weight*100)) > 0.000001) throw registrationError('Enter a weight from 0.05 to 120 kg, with at most two decimal places.');
   if (!['Yes','No','Not sure'].includes(body.neutered)) throw registrationError('Choose the spay/neuter status.');
   const dentalOcclusion = text('dentalOcclusion',100);
-  if (species === 'Rodent' && !dentalStatuses.includes(dentalOcclusion)) throw registrationError('Choose the dental status, or select Not Evaluated Yet.');
   return { priorVaccines:(body.priorVaccines || []).map(v=>v.trim()),externalClinicNotes:(body.externalClinicNotes || '').trim(), name, species, speciesOther:species === 'Other' ? speciesOther : '', breed:text('breed',50), sex:body.sex, birth:body.birth, weight:body.weight, neutered:body.neutered, color:text('color',40), notes:text('notes',200), dentalOcclusion:species === 'Rodent' ? dentalOcclusion : '', photo:validatePetPhoto(body.photo ?? '') };
 }
 

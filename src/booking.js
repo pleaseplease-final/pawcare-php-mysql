@@ -21,10 +21,10 @@ export const SERVICES = {
   vaccination: { label: "Vaccination", icon: "💉", dur: 30, blurb: "Vaccines and boosters", pick: "Which vaccine?", hint: "Not sure? Choose “Not sure” and the vet will advise", prefix: "Vaccination – ",
     options: ["Anti-rabies", "5-in-1", "6-in-1", "8-in-1", "Kennel cough", "Feline 4-in-1", "Not sure, ask the vet", "Other"] },
   deworming: { label: "Deworming", icon: "💊", dur: 30, blurb: "Worm and parasite prevention", pick: "Reason for visit", hint: "Treatment is decided by your veterinarian", prefix: "Deworming – ", options: ["Routine deworming", "Follow-up", "Other"] },
-  surgery: { retired: true, label: "Surgery / Dental", icon: "🩺", dur: 120, blurb: "Assessment and procedure slot", pick: "Reason for visit", hint: "The clinic confirms preparation and suitability", prefix: "Surgery – ", options: ["Surgical assessment", "Dental assessment", "Follow-up", "Other"] },
+  surgery: { retired: true, label: "Clinical assessment", icon: "🩺", dur: 120, blurb: "No longer offered", pick: "Reason for visit", hint: "The clinic confirms preparation and suitability", prefix: "Surgery – ", options: ["Surgical assessment", "Dental assessment", "Follow-up", "Other"] },
   grooming: { label: "Grooming", icon: "✂️", dur: 60, blurb: "Grooming and sanitary care", pick: "Reason for visit", hint: "The clinic confirms the service", prefix: "Grooming – ", options: ["Routine grooming", "Sanitary care", "Other"] },
   checkup: { label: "Check-up", icon: "🩺", dur: 60, blurb: "Exam and consultation", pick: "Reason for the check-up", hint: "Choose the closest match", prefix: "",
-    options: ["Annual check-up", "Skin or ear problem", "Limping or injury", "Vomiting or diarrhea", "Not eating or drinking", "Dental check", "Follow-up visit", "Other"] },
+    options: ["Annual check-up", "Skin or ear problem", "Limping or injury", "Vomiting or diarrhea", "Not eating or drinking", "Follow-up visit", "Other"] },
 };
 /* Surgery and dental are no longer booked directly: the vet decides during a check-up.
    The entry stays so older visits keep their length and label. */

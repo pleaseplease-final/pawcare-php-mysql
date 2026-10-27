@@ -14,7 +14,7 @@ export function minutes(time) {
   if (meridian) h = h % 12 + (meridian === 'PM' ? 12 : 0);
   return h * 60 + m;
 }
-export const inferBookingService = reason => /surgery|dental/i.test(reason) ? 'surgery' : /groom/i.test(reason) ? 'grooming' : /deworm/i.test(reason) ? 'deworming' : /vaccin|rabies|booster/i.test(reason) ? 'vaccination' : 'checkup';
+export const inferBookingService = reason => /groom/i.test(reason) ? 'grooming' : /deworm/i.test(reason) ? 'deworming' : /vaccin|rabies|booster/i.test(reason) ? 'vaccination' : 'checkup';
 export const bookingError = (message, status = 400) => Object.assign(new Error(message), { status });
 export function validateSchedule(v, now = new Date(), duration = SERVICES[v.service]?.dur) {
   const clock = clinicClock(now);

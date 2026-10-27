@@ -1,3 +1,4 @@
+import { TEMP_MIN, TEMP_MAX } from '../src/vitalValidation.js';
 import {admissionChoiceErrors} from '../src/admissionTemplates.js';
 import {vitalValueError} from '../src/vitalValidation.js';
 import { readFileSync } from 'node:fs';
@@ -43,6 +44,10 @@ export function admissionInput(body, action, role) {
   if(careFields.slice(2).some(key=>body[key]!==undefined) && (!['vet','assistant'].includes(role) || !['create','update','consent'].includes(action))) throw admissionError('Only care staff can record admission consent.',403);
   if (action === 'create' || body.nextObservationAt !== undefined || body.observationInstructions !== undefined) {
     if (typeof body.nextObservationAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(body.nextObservationAt) || !Number.isFinite(Date.parse(body.nextObservationAt)) || new Date(`${body.nextObservationAt.slice(0,10)}T00:00:00Z`).toISOString().slice(0,10)!==body.nextObservationAt.slice(0,10)) throw admissionError('Set the next observation date and time with a timezone.');
+    // Allow a minute for clock differences; anything later than a week is a typing mistake (e.g. 2028 instead of 2026).
+    const when = Date.parse(body.nextObservationAt), now = Date.now();
+    if (when <= now - 60000) throw admissionError('Choose a future time for the next observation.');
+    if (when > now + 7 * 86400000) throw admissionError('The next observation must be within 7 days.');
     data.nextObservationAt = new Date(body.nextObservationAt).toISOString();
     data.observationInstructions = text(body.observationInstructions,'Observation instructions',1000,true);
   }
@@ -60,10 +65,10 @@ export function admissionInput(body, action, role) {
   if (action === 'discharge') data.dischargeInstructions = text(body.dischargeInstructions,'Discharge and home-care instructions',3000,true);
   if (body.measurements !== undefined) {
     if (!body.measurements || typeof body.measurements !== 'object' || Array.isArray(body.measurements) || Object.keys(body.measurements).some(key => !['temp','weight'].includes(key))) throw admissionError('Record only measured temperature and weight.');
-    for (const [key,min,max] of [['temp',33,45],['weight',0.05,120]]) {
+    for (const [key,min,max] of [['temp',TEMP_MIN,TEMP_MAX],['weight',0.05,120]]) {
       const value = body.measurements[key];
       if (value !== undefined) {
-        if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw admissionError(`Enter a measured ${key === 'temp' ? 'temperature (33–45°C)' : 'weight (0.05–120 kg)'}.`);
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw admissionError(`Enter a measured ${key === 'temp' ? `temperature (${TEMP_MIN}–${TEMP_MAX}°C)` : 'weight (0.05–120 kg)'}.`);
         const invalid=vitalValueError(value,key);if(invalid)throw admissionError(invalid);
         data.measurements[key] = value;
       }

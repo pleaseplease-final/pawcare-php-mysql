@@ -29,11 +29,13 @@ test('a correct patient record passes', () => {
   assert.deepEqual(petDetailErrors({ ...pet, breed: '', color: '' }, '2026-10-27'), {});
 });
 
-test('patient birth dates must be real, past and not before 1990', () => {
+test('patient birth dates must be real, not in the future and not before 2000', () => {
   assert.ok(petDetailErrors({ ...pet, birth: '' }, '2026-10-27').birth);
   assert.ok(petDetailErrors({ ...pet, birth: '2021-02-31' }, '2026-10-27').birth);
   assert.match(petDetailErrors({ ...pet, birth: '2030-01-01' }, '2026-10-27').birth, /future/);
-  assert.match(petDetailErrors({ ...pet, birth: '1980-01-01' }, '2026-10-27').birth, /1990/);
+  assert.match(petDetailErrors({ ...pet, birth: '1999-12-31' }, '2026-10-27').birth, /2000/);
+  assert.equal(petDetailErrors({ ...pet, birth: '2000-01-01' }, '2026-10-27').birth, undefined);
+  assert.equal(petDetailErrors({ ...pet, birth: '2026-10-27' }, '2026-10-27').birth, undefined, 'born today is allowed');
 });
 
 test('patient choices and lengths are enforced', () => {

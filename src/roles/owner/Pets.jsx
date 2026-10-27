@@ -21,6 +21,8 @@ import {
 import { petPlausibility } from "../../petLimits.js";
 import { currentVaccinationDue, vaccinationStatus } from "../../ownerVaccination.js";
 import { today as clinicToday } from "../../booking.js";
+import { petBirthError, PET_BIRTH_EARLIEST } from "../../dateRules.js";
+const clinicDay = () => clinicToday();
 import { api } from "../../api.js";
 
 /* ---------- Clinical Species Classification (VCMS Protocols v2.0) ---------- */
@@ -35,13 +37,6 @@ export const SPECIES = [
 
 export const NEUTERED = ["Yes", "No", "Not sure"];
 
-export const RODENT_DENTAL_STATUS = [
-  "Normal / Aligned (Healthy Occlusion)",
-  "Incisor Overgrowth (Needs Trim)",
-  "Molar Spurs / Malocclusion (Needs Dental Burr)",
-  "Signs of Drooling / Wet Chin (Suspected Malocclusion)",
-  "Not Evaluated Yet"
-];
 
 export const PET_COLORS = [
   "Black",
@@ -172,18 +167,14 @@ BREEDS_BY_SPECIES.Bird = BREEDS_BY_SPECIES["Avian (Bird)"];
 export const GUIDANCE_BY_SPECIES = {
   "Canine (Dog)": "Canine Protocol (VCMS v2.0): Bi-weekly deworming starts at Day 14, switching to monthly at Day 90. Core DHPP starts at 6 weeks (Day 42), with Rabies at 12+ weeks (Day 84). Flea/tick/heartworm starts at 8 weeks. Strict heartworm antigen testing required for dogs >= 7 months with safety gaps.",
   "Feline (Cat)": "Feline Protocol (VCMS v2.0): Bi-weekly deworming starts at Day 14 (transitions to quarterly at 6 months). FVRCP 4-in-1 core immunization starts at 6 weeks, with Rabies at 12+ weeks. Strict toxicology block: Never use Permethrin formulas on felines.",
-  "Lagomorph (Rabbit)": "Lagomorph Protocol (VCMS v2.0): Annual RHDV1/RHDV2 vaccination starts at Day 35. High-fiber timothy hay (80%+) and semi-annual dental checks are vital. Strict toxicology block: Fipronil (Frontline) is strictly prohibited due to fatal neurotoxicity.",
+  "Lagomorph (Rabbit)": "Lagomorph Protocol (VCMS v2.0): Annual RHDV1/RHDV2 vaccination starts at Day 35. High-fiber timothy hay (80%+) is vital. Strict toxicology block: Fipronil (Frontline) is strictly prohibited due to fatal neurotoxicity.",
   "Rodent (Hamster / Guinea Pig / etc.)": "Rodent Protocol (VCMS v2.0): Continuous elodont dentition requires semi-annual molar and incisor occlusion surveillance. Monitor for incisor overgrowth, molar spurs, and wet chin / drooling.",
   "Avian (Bird)": "Avian Protocol (VCMS v2.0): Annual fecal float screening at 6 months. Home Hazard Warning: Inhaled PTFE/Teflon cookware fumes and aerosol sprays cause fatal hemorrhagic respiratory failure.",
   "Other": "Other species: the veterinarian will advise on the right care and preventive visits for this pet after the first examination."
 };
 
-const getYesterday = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-};
-export const YESTERDAY = getYesterday();
+// Pet birth dates: January 1, 2000 up to and including today (clinic day, Asia/Manila).
+export { PET_BIRTH_EARLIEST as OLDEST } from "../../dateRules.js";
 
 const LETTER = /[A-Za-zÀ-ÿ]/;
 const NAME_RE = /^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .'\-]*$/;
@@ -192,8 +183,6 @@ const DECIMAL = /^(\d{1,3}(\.\d{1,2})?|\.\d{1,2})$/;
 /* Typing guard for free text: drops characters that don't belong. */
 export const petText = s => s.replace(/[^A-Za-zÀ-ÿ0-9 .,'\-\/()]/g, "").replace(/^\s+/, "").replace(/\s{2,}/g, " ");
 
-const yearsBefore = (n) => { const d = new Date(TODAY + "T00:00:00"); d.setFullYear(d.getFullYear() - n); return d.toISOString().slice(0, 10); };
-export const OLDEST = yearsBefore(40);
 
 /* v = form values, taken = lower-case names this owner already has (pets and requests). Returns { field: message }. */
 export function validatePet(v, taken = []) {
@@ -222,10 +211,8 @@ export function validatePet(v, taken = []) {
   if (!v.sex) e.sex = "Choose male or female";
   else if (!["Male", "Female"].includes(v.sex)) e.sex = "Pick one from the list";
 
-  if (!v.birth) e.birth = "Enter the birth date (yesterday or earlier)";
-  else if (!/^\d{4}-\d{2}-\d{2}$/.test(v.birth) || isNaN(new Date(v.birth + "T00:00:00Z")) || new Date(v.birth + "T00:00:00Z").toISOString().slice(0,10) !== v.birth) e.birth = "Enter a valid date";
-  else if (v.birth >= TODAY) e.birth = "Birth date cannot be today or in the future. Please select yesterday or earlier";
-  else if (v.birth < OLDEST) e.birth = "That date is too far back. Check the year";
+  const birthProblem = petBirthError(v.birth, clinicToday());
+  if (birthProblem) e.birth = birthProblem;
 
   if (v.weight === "") e.weight = "Enter your pet’s weight in kg";
   else if (!DECIMAL.test(v.weight)) e.weight = "Use numbers only, for example 4.5";
@@ -239,10 +226,6 @@ export function validatePet(v, taken = []) {
   if (c.length > 40) e.color = "Keep it under 40 characters";
   else if (c && !LETTER.test(c)) e.color = "Use words, not only numbers or symbols";
 
-  if (v.species && v.species.includes("Rodent")) {
-    if (!v.dentalOcclusion) e.dentalOcclusion = "Please assess dental/occlusion status";
-    else if (!RODENT_DENTAL_STATUS.includes(v.dentalOcclusion)) e.dentalOcclusion = "Select an occlusion status";
-  }
 
   // The server applies the same species limits (src/petLimits.js).
   if (v.species && v.birth && v.weight !== "") for (const [key, message] of Object.entries(petPlausibility({species: v.species, weight: v.weight, birth: v.birth, today: TODAY}))) e[key] ||= message;
@@ -281,7 +264,7 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
     weight: e0.weight != null ? String(e0.weight) : "",
     neutered: e0.neutered || "",
     color: e0.color || "",
-    dentalOcclusion: e0.dentalOcclusion || "Not Evaluated Yet",
+    dentalOcclusion: "",
     priorVaccines:e0.priorVaccines || [],externalClinicNotes:e0.externalClinicNotes || "",
     notes: e0.notes || ""
   }, v => validatePet(v, taken));
@@ -308,11 +291,6 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
     setBreedChoice("");
     setCustomBreed("");
     f.set("breed", "");
-    if (newSpecies.includes("Rodent")) {
-      f.set("dentalOcclusion", "Not Evaluated Yet");
-    } else {
-      f.set("dentalOcclusion", "");
-    }
   };
 
   const handleBreedChoiceChange = choice => {
@@ -367,7 +345,7 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
       weight: +v.weight,
       neutered: v.neutered,
       color: v.color.trim(),
-      dentalOcclusion: canonicalSpecies === "Rodent" ? v.dentalOcclusion : "",
+      dentalOcclusion: "",
       priorVaccines:v.priorVaccines.map(v=>v.trim()),externalClinicNotes:v.externalClinicNotes.trim(),
       notes: v.notes.trim(),
       photo
@@ -384,7 +362,6 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
         ["Previous-clinic references (unverified)",data.priorVaccines.join(", ") || "None"],["Reference notes",data.externalClinicNotes],
         ["Neutered",data.neutered],
         ["Color",data.color],
-        ["Dental status",data.dentalOcclusion],
         ["Notes",data.notes],
         ["Photo",photo ? <img src={photo} alt="Patient photo to submit" /> : "No photo selected"]]
     })) return;
@@ -456,11 +433,6 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
             </div>
           )}
 
-          {normSpecies === "Rodent" && (
-            <div className="full">
-              <Field id="p-dental" label="Dental / Occlusion Status" req type="select" value={v.dentalOcclusion} onChange={x => f.set("dentalOcclusion", x)} onBlur={() => f.blur("dentalOcclusion")} options={RODENT_DENTAL_STATUS.map(s => [s, s])} error={f.show("dentalOcclusion")} valid={f.ok("dentalOcclusion")} hint="VCMS Protocol: Continuous rodent elodont dentition requires routine incisor & molar surveillance." />
-            </div>
-          )}
 
           {v.species && availableBreeds.length > 0 ? (
             <Field id="pb-sel" label={`${formatSpeciesLabel(v.species)} breed`} req={false} type="select" value={breedChoice} onChange={handleBreedChoiceChange} options={availableBreeds.map(b => [b, b])} error={f.show("breed")} valid={f.ok("breed")} hint="Select breed or choose Other/Mixed" />
@@ -473,7 +445,7 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
           <Field id="px" label="Sex" req type="select" value={v.sex} onChange={x => f.set("sex", x)} onBlur={() => f.blur("sex")} options={[["Male", "Male"], ["Female", "Female"]]} error={f.show("sex")} valid={f.ok("sex")} />
 
           <div>
-            <Field id="pd" label="Birth date (yesterday or earlier)" req type="date" min={OLDEST} maxDate={YESTERDAY} value={v.birth} onChange={x => f.set("birth", x)} onBlur={() => f.blur("birth")} error={f.show("birth")} valid={f.ok("birth")} hint="Birth date cannot be today or in the future" />
+            <Field id="pd" label="Birth date (Jan 1, 2000 to today)" req type="date" min={PET_BIRTH_EARLIEST} maxDate={clinicDay()} value={v.birth} onChange={x => f.set("birth", x)} onBlur={() => f.blur("birth")} error={f.show("birth")} valid={f.ok("birth")} hint="Birth date cannot be today or in the future" />
             {petCalculatedAge && (
               <p className="ow-agechip"><Icon n="clock" size={14} />Age: {petCalculatedAge}</p>
             )}
@@ -537,13 +509,6 @@ export function RequestList({ db, setDb, me, say, onEdit, onBook }) {
             <span className={`op-ico${no ? " no" : ""}`}><Icon n={no ? "alert" : "clock"} size={20} /></span>
             <div className="op-reqb">
               <b>{r.name}</b> <small>{kind(r)}{r.breed ? ` · ${r.breed}` : ""} · {r.sex} · {r.weight} kg</small>
-              {r.dentalOcclusion && (
-                <div style={{ marginTop: "3px" }}>
-                  <span style={{ background: "#e0e7ff", color: "#3730a3", fontSize: "0.72rem", padding: "1px 6px", borderRadius: "6px", fontWeight: 600 }}>
-                    Dental: {r.dentalOcclusion}
-                  </span>
-                </div>
-              )}
               <span className={`op-chip ${no ? "no" : "wait"}`}>{no ? "Declined by the clinic" : "Pending verification"}</span>
               {no && r.declineReason && <small className="op-why">Reason: {r.declineReason}</small>}
               {no && <small className="op-why">Fix the details and send it again, or remove it.</small>}
@@ -583,7 +548,7 @@ export function PetProfileModal({ pet, db, setDb, me, onClose, onVacc, onBook })
     [weightSourceLabel(p), p.weight != null ? `${p.weight} kg` : ""],
     ["Spayed or neutered", p.neutered],
     ["Color", p.color],
-    p.dentalOcclusion ? ["Dental Status", p.dentalOcclusion] : null
+    null
   ].filter(Boolean).filter(([, x]) => x);
 
   return (

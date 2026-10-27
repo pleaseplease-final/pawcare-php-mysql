@@ -1,6 +1,7 @@
 import {isCheckoutAddon} from '../src/checkoutProducts.js';
 import { GUIDE_PRODUCTS } from "./productGuide.js";
 import { mergeManaged } from './clinicCatalog.js';
+import { isRemovedItem, LEGACY_CATEGORY_NAMES } from '../src/catalogRules.js';
 export const SERVICE_PRICES = [
   { id: "srv_consult", category: "Consultation & Exam", name: "Routine General Consultation & Exam", price: 500, desc: "Standard physical evaluation of vitals & condition" },
   { id: "srv_senior", category: "Consultation & Exam", name: "Senior Comprehensive Wellness Exam", price: 750, desc: "In-depth geriatric health review (7+ yrs)" },
@@ -20,7 +21,7 @@ export const SERVICE_PRICES = [
 ];
 
 // Deployment-owned prices; never accept product prices from a checkout request.
-const productTypes = ['Pet shampoo', 'Pet vitamins', 'Pet medicine', 'Pet accessories', 'Prescription diet', 'Dental & ear care'];
+const productTypes = ['Pet shampoo', 'Pet vitamins', 'Pet medicine', 'Pet accessories', 'Prescription diet', 'Ear care'];
 // Built-in items plus anything set in the deployment; administrator changes are layered on by priceCatalog().
 export function baseCatalog() {
   const products = JSON.parse(process.env.CLINIC_PRODUCTS_JSON || '[]');
@@ -31,7 +32,11 @@ export function baseCatalog() {
 }
 // Retired items stay priceable so visits already carrying them can still be billed; new sales use active items only.
 export function priceCatalog({includeRetired = false} = {}) {
-  const merged = mergeManaged(baseCatalog());
+  // Removed (dental / surgery) items are always inactive and flagged so lists can leave them out entirely.
+  const merged = mergeManaged(baseCatalog()).map(item => {
+    const category = LEGACY_CATEGORY_NAMES[item.category] || item.category;
+    return isRemovedItem(item) ? {...item, category, active: false, removed: true} : {...item, category};
+  });
   return includeRetired ? merged : merged.filter(item => item.active !== false);
 }
 export function canonicalInvoice(items, catalog = priceCatalog({includeRetired: true}), admission = []) {

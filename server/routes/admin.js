@@ -141,7 +141,7 @@ const reloadCatalog = async () => { await refreshManagedCatalog({force:true}); r
 adminRouter.get('/catalog',async(req,res)=>{
  try {
   await refreshManagedCatalog({force:true});
-  res.set('Cache-Control','no-store').json({items:priceCatalog({includeRetired:true}).map(catalogView)});
+  res.set('Cache-Control','no-store').json({items:priceCatalog({includeRetired:true}).filter(item=>!item.removed).map(catalogView)});
  } catch {res.status(500).json({error:'Unable to load the price list. Please retry.'});}
 });
 adminRouter.post('/catalog',async(req,res)=>{
@@ -168,7 +168,7 @@ adminRouter.put('/catalog/:id',async(req,res)=>{
  try {
   await refreshManagedCatalog({force:true});
   const items=priceCatalog({includeRetired:true}), item=items.find(i=>i.id===req.params.id), input=req.body || {};
-  if(!item)throw problem('This item is no longer in the price list. Refresh the list.',404);
+  if(!item || item.removed)throw problem('This item is no longer in the price list. Refresh the list.',404);
   if(!Number.isInteger(input.revision) || input.revision<0)throw problem('Refresh the price list before saving.',409);
   if(typeof input.active!=='boolean')throw problem('Choose whether the item is active.');
   const errors=catalogErrors(input,items,item);

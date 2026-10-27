@@ -54,8 +54,8 @@ async function run() {
   flushSync(()=>root.render(<AdmissionForm mode="create" visits={[visit]} consultationContext={visit} me={{role:'vet'}} onClose={()=>{}} onSaved={()=>{throw Error('Incomplete admission must not save');}} />));await frame();
   await submit();
   for(let pass=0;pass<3;pass++) {
-    await edit('reasonChoice','Post-procedure recovery');await edit('planTemplate','General observation');await edit('observationTemplate','Recovery observation');await submit();
-    assert(field('reasonChoice').value==='Post-procedure recovery','Admission reason reset after validation');
+    await edit('reasonChoice','Supportive care and stabilization');await edit('planTemplate','General observation');await edit('observationTemplate','Recovery observation');await submit();
+    assert(field('reasonChoice').value==='Supportive care and stabilization','Admission reason reset after validation');
     assert(field('planTemplate').value==='General observation','Care plan template reset');
     assert(field('observationTemplate').value==='Recovery observation','Monitoring template reset');
     assert(field('carePlan').value.includes('veterinarian-directed'),'Care template must populate instructions');

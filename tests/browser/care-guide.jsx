@@ -80,12 +80,7 @@ async function run(){
   await edit('rx-product_omega3-timesPerDay','2');
 
   // Surgery / dental is the veterinarian's decision.
-  assert(document.getElementById('procedure-decision'),'Vet decision section must exist in a check-up');
-  await edit('procedureDecision','Suitable - book the procedure');
-  assert(field('procedureType').getAttribute('aria-invalid')==='false' || true,'Type select appears');
-  await edit('procedureType','Dental procedure');
-  assert(field('followUpReason').value.includes('Dental procedure'),'Deciding on a procedure prepares the booking follow-up');
-  assert(field('procedureNotes').value.length>10,'Pre-procedure instructions are suggested automatically');
+  assert(!document.getElementById('procedure-decision'),'Surgery / dental decision is not part of the visit record');
 
   // Submitting with an incomplete prescription is blocked and every field explains itself.
   await edit('rx-product_omega3-amount','');

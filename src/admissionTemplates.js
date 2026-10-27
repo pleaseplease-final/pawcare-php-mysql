@@ -1,13 +1,10 @@
 // Documentation prompts only. The treating veterinarian reviews every saved plan.
-export const admissionReasons=['Observation and diagnostic monitoring','Pre-procedure preparation','Post-procedure recovery','Supportive care and stabilization','Isolation and infectious-disease monitoring','Other'];
+export const admissionReasons=['Observation and diagnostic monitoring','Supportive care and stabilization','Isolation and infectious-disease monitoring','Other'];
 export const carePlanTemplates={
- 'Pre-procedure preparation':'Prepare the patient for the procedure as directed by the treating veterinarian. Confirm fasting status and consent, record measured observations, and notify the veterinarian about concerns. Follow separate saved medicine orders.',
  'General observation':'Provide the veterinarian-directed care in this consultation. Keep the patient comfortable, record intake/output and changes in condition, and notify the treating veterinarian about concerns. Follow separate saved medicine orders.',
- 'Post-procedure recovery':'Monitor recovery and comfort as directed by the treating veterinarian. Record responsiveness, wound observations and intake/output. Notify the veterinarian about concerns. Follow separate saved medicine orders.',
  'Isolation care':'Follow the clinic’s isolation and hygiene procedures. Record clinical changes and intake/output. Notify the treating veterinarian about concerns. Follow separate saved medicine orders.'
 };
 export const monitoringTemplates={
- 'Pre-procedure observation':'Confirm fasting status, record measured weight/temperature when taken, comfort and any vomiting or changes in condition. Notify the veterinarian about concerns.',
  'General observation':'Record measured weight/temperature when taken, appetite, water intake, activity, urine/stool and changes in condition. Notify the veterinarian about concerns.',
  'Recovery observation':'Record responsiveness, breathing, comfort, wound observations and intake/output. Notify the veterinarian about concerns.',
  'Isolation observation':'Record measured observations, appetite, water intake, urine/stool and changes in condition; follow isolation precautions and notify the veterinarian about concerns.'

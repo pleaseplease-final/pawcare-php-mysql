@@ -1,6 +1,12 @@
 // Rules for the clinic's price list, shared by the admin form and the server.
-export const PRODUCT_CATEGORIES = ['Pet shampoo', 'Pet vitamins', 'Pet medicine', 'Pet accessories', 'Prescription diet', 'Dental & ear care'];
-export const SERVICE_CATEGORIES = ['Consultation & Exam', 'Vaccination & Preventive', 'Diagnostic & Lab', 'Procedures & Care', 'Dental & Surgery'];
+export const PRODUCT_CATEGORIES = ['Pet shampoo', 'Pet vitamins', 'Pet medicine', 'Pet accessories', 'Prescription diet', 'Ear care'];
+export const SERVICE_CATEGORIES = ['Consultation & Exam', 'Vaccination & Preventive', 'Diagnostic & Lab', 'Procedures & Care'];
+// Dental and surgery are not offered by the clinic. These items stay priceable only so visits already billed with
+// them still validate; they are never listed, sold or prescribed. Old category names map to the current ones.
+export const REMOVED_ITEM_IDS = ['srv_dental', 'product_toothpaste', 'product_dental_chews'];
+export const REMOVED_CATEGORIES = ['Dental & Surgery'];
+export const LEGACY_CATEGORY_NAMES = {'Dental & ear care': 'Ear care'};
+export const isRemovedItem = item => REMOVED_ITEM_IDS.includes(item.id) || REMOVED_CATEGORIES.includes(item.category);
 export const RX_CATEGORIES = ['Pet medicine', 'Prescription diet'];
 export const NAME_RULE = /^[\p{L}0-9][\p{L}0-9 .,'’()\/&+%-]*$/u;
 export const MAX_PRICE = 1000000;

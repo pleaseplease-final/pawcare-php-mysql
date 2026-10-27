@@ -4,6 +4,7 @@ import {useEffect,useRef,useState} from 'react';
 import {api} from '../api.js';
 import {clinicRequest} from '../clinicApi.js';
 import {useFormValidation} from '../components/useFormValidation.jsx';
+import {EARLIEST_DATE} from '../dateRules.js';
 import {timelineFilterErrors} from '../clinicDocumentValidation.js';
 import {PaginatedList} from '../components/Pagination.jsx';
 import {filterCardEvents,cardCareDue} from '../vetCardTimeline.js';
@@ -65,7 +66,7 @@ export default function DigitalVetCard({petId,refreshKey,portrait,appointments,o
  const [data,setData]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[exporting,setExporting]=useState(false);
  const [flipped,setFlipped]=useState(false);
  const [filters,setFilters]=useState({kind:'',from:'',to:'',query:''});
- const validation=useFormValidation(timelineFilterErrors(filters)),exportPending=useRef(false),generation=useRef(0);
+ const validation=useFormValidation(timelineFilterErrors(filters,data?.history?.pet?.registeredAt)),exportPending=useRef(false),generation=useRef(0);
  const load=async()=>{
   const id=++generation.current;setLoading(true);setError('');
   try{const next=await api.get(`/api/pets/${encodeURIComponent(petId)}/vet-card`);if(generation.current===id)setData(next);}
@@ -116,8 +117,8 @@ export default function DigitalVetCard({petId,refreshKey,portrait,appointments,o
      <div className="vet-card-history-body">
    <form {...validation.formProps} className="vet-card-filters" onSubmit={e=>e.preventDefault()}>
     <label>History type<select {...validation.field('kind')} value={filters.kind} onChange={e=>edit('kind',e.target.value)}><option value="">All records</option><option value="vaccination">Vaccinations</option><option value="deworming">Deworming</option><option value="weight">Visit weights</option></select>{validation.feedback('kind')}</label>
-    <label>From date<input type="date" min="2000-01-01" max={filters.to || today()} {...validation.field('from')} value={filters.from} onChange={e=>edit('from',e.target.value)}/>{validation.feedback('from')}</label>
-    <label>To date<input type="date" min={filters.from || '2000-01-01'} max={today()} {...validation.field('to')} value={filters.to} onChange={e=>edit('to',e.target.value)}/>{validation.feedback('to')}</label>
+    <label>From date<input type="date" min={history.pet.registeredAt || EARLIEST_DATE} max={filters.to || today()} {...validation.field('from')} value={filters.from} onChange={e=>edit('from',e.target.value)}/>{validation.feedback('from')}</label>
+    <label>To date<input type="date" min={filters.from || history.pet.registeredAt || EARLIEST_DATE} max={today()} {...validation.field('to')} value={filters.to} onChange={e=>edit('to',e.target.value)}/>{validation.feedback('to')}</label>
     <label>Search history<input type="search" {...validation.field('query')} value={filters.query} onChange={e=>edit('query',e.target.value)}/>{validation.feedback('query')}</label>
    </form>
    {!Object.values(timelineFilterErrors(filters)).some(Boolean) && <VetCardTimeline history={history} document={document} filters={filters}/>}

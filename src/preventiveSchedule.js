@@ -135,9 +135,7 @@ export function computeAgeDetails(birthDate) {
  * 3. Lagomorph (Rabbit):
  *    - Core Vaccine: RHDV1 / RHDV2 at Day 35 (Annual)
  *    - Parasiticide: Fipronil STRICT TOXICOLOGY BAN (fatal rabbit neurotoxicity)
- *    - Physical Exam: Semi-annual GI/Dental check (q180d)
  * 4. Rodent:
- *    - Physical Exam: Dental / Occlusion check at Day 180 (q180d, Molar/Incisor overgrowth check)
  * 5. Avian:
  *    - Diagnostic: Fecal Float screening at Day 180 (Annual, Teflon/PTFE home hazard warning)
  */
@@ -242,9 +240,9 @@ export function getPreventiveSchedule(birthDate, rawSpecies = "Canine", complete
           ageLabel: "Annual Comprehensive",
           category: "exam",
           className: "Wellness Exam",
-          care: "Annual Adult Canine Wellness & Dental Check",
-          target: "Cardiopulmonary auscultation, Body Condition Score (BCS) & Dental Calculus Grade",
-          protocol: "Comprehensive physical veterinary inspection and dental assessment",
+          care: "Annual Adult Canine Wellness Check",
+          target: "Cardiopulmonary auscultation, Body Condition Score (BCS)",
+          protocol: "Comprehensive physical veterinary inspection",
           constraints: "Annual wellness check.",
           isCore: true,
           isRecurring: true,
@@ -571,8 +569,8 @@ export function getPreventiveSchedule(birthDate, rawSpecies = "Canine", complete
           ageLabel: "Annual Comprehensive",
           category: "exam",
           className: "Wellness Exam",
-          care: "Annual Adult Feline Wellness & Dental Inspection",
-          target: "Thoracic auscultation, feline resorptive dental lesions check & BCS",
+          care: "Annual Adult Feline Wellness Inspection",
+          target: "Thoracic auscultation & BCS",
           protocol: "Comprehensive adult feline health examination",
           constraints: "Annual wellness check.",
           isCore: true,
@@ -793,38 +791,11 @@ export function getPreventiveSchedule(birthDate, rawSpecies = "Canine", complete
         protocol: "DO NOT DISPENSE OR APPLY FIPRONIL (FRONTLINE)",
         constraints: "Toxicology Block: Strict ban on Fipronil (Frontline) due to fatal rabbit neurotoxicity. AI & UI interceptor active.",
         isCore: false
-      },
-      {
-        id: "rabbit-dental-check",
-        workflow: "Physical Exam",
-        ageLabel: "Every 6 Months (Day 180)",
-        daysOffset: 180,
-        category: "exam",
-        className: "Dental / GI Assessment",
-        care: "Lagomorph Dental & Cecotrope Clinical Exam",
-        target: "Elodont continuously growing incisors & molars, GI stasis screening",
-        protocol: "Otoscopic molar spur inspection & dietary hay assessment",
-        constraints: "Every 180 days interval for rabbit GI & dental health.",
-        isCore: false,
-        isRecurring: true
       }
     ];
   } else if (species === "Rodent") {
     rawItems = [
-      {
-        id: "rodent-dental-180d",
-        workflow: "Physical Exam",
-        ageLabel: "6 Months Old (Day 180)",
-        daysOffset: 180,
-        category: "exam",
-        className: "Dental / Occlusion",
-        care: "Molar & Incisor Overgrowth Clinical Exam",
-        target: "Continuous elodont incisor/molar occlusion surveillance",
-        protocol: "Visual otoscope / speculum examination for dental burr / trimming needs",
-        constraints: "Start Condition: Patient_Age >= 180 Days. Interval: Every 180 Days. Enforce custom UI dropdown field for Molar/Incisor Overgrowth status.",
-        isCore: true,
-        isRecurring: true
-      },
+      
       {
         id: "rodent-wellness",
         workflow: "Physical Exam",

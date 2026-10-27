@@ -7,6 +7,8 @@ import { categoryOf, categoryOptions, summarize, CATEGORY_LABEL } from "../repor
 import { useState, useMemo } from "react";
 import { E, scope, Badge } from "../lib.jsx";
 import { OfficialLetterhead, DocumentSignoff, manilaDateTime } from "../components/OfficialDocument.jsx";
+import { EARLIEST_DATE, addDays, dateRangeErrors } from "../dateRules.js";
+import { today as clinicToday } from "../booking.js";
 import {
   FileText,
   Download,
@@ -148,8 +150,11 @@ export default function ReportsPage({ db, me }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [search, setSearch] = useState("");
-  const dateIssue = (d, label) => d && (d < "2000-01-01" ? `${label} must be in 2000 or later.` : d > "2100-12-31" ? `${label} must be before 2101.` : "");
-  const fromError = dateIssue(from, "From date"), toError = dateIssue(to, "To date") || (from && to && from > to ? "To date must be on or after the From date." : "");
+  // Appointment reports may look ahead at booked visits; every other report covers saved past records only.
+  const allowFuture = reportType === "appts", latestDate = allowFuture ? addDays(clinicToday(), 365) : clinicToday();
+  const rangeErrors = dateRangeErrors(from, to, { allowFuture });
+  if (allowFuture) for (const [key, value] of [["from", from], ["to", to]]) if (!rangeErrors[key] && value > latestDate) rangeErrors[key] = "Choose a date within one year from today.";
+  const fromError = rangeErrors.from || "", toError = rangeErrors.to || "";
   const [category, setCategory] = useState("");
 
   const currentCfg = (REPORT_CONFIG[reportType]?.adminOnly && me.role !== "admin" ? null : REPORT_CONFIG[reportType]) || REPORT_CONFIG.appts;
@@ -358,7 +363,7 @@ export default function ReportsPage({ db, me }) {
               <input
                 type="date"
                 value={from}
-                min="2000-01-01" max={to || "2100-12-31"}
+                min={EARLIEST_DATE} max={to && to < latestDate ? to : latestDate}
                 onChange={e => setFrom(e.target.value)}
                 style={{ fontSize: "calc(12.5px * var(--fs, 1))", padding: "6px 10px" }}
                 aria-label="Filter from date" aria-invalid={!!fromError} aria-describedby="report-date-msg"
@@ -367,7 +372,7 @@ export default function ReportsPage({ db, me }) {
               <input
                 type="date"
                 value={to}
-                min={from || "2000-01-01"} max="2100-12-31"
+                min={from || EARLIEST_DATE} max={latestDate}
                 onChange={e => setTo(e.target.value)}
                 style={{ fontSize: "calc(12.5px * var(--fs, 1))", padding: "6px 10px" }}
                 aria-label="Filter to date" aria-invalid={!!toError} aria-describedby="report-date-msg"

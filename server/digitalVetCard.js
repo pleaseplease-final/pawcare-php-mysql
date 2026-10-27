@@ -42,7 +42,7 @@ export async function cardHistory(client,pet){
   AND NOT EXISTS(SELECT 1 FROM vital_measurements c WHERE c.corrects_id=m.id) ORDER BY measurement_date,id`,[pet.id])).rows
   .map(m=>({id:m.id,kind:'weight',date:date(m.measurement_date),visitId:m.appt_id || null,value:Number(m.value),unit:'kg'}));
  const events=[...vaccinations,...weights].sort((a,b)=>`${b.date || ''}|${b.id}`.localeCompare(`${a.date || ''}|${a.id}`));
- return {complete:true,pet:{id:pet.id,internalReference:pet.vaccination_card_id,name:pet.name,species:pet.species,speciesOther:pet.species_other || '',breed:pet.breed,sex:pet.sex,birth:date(pet.birth),color:pet.color || '',neutered:pet.neutered || '',microchipNumber:pet.microchip_number || '',microchipDate:date(pet.microchip_date),ownerName:owner.name || 'Not recorded'},owner,events};
+ return {complete:true,pet:{id:pet.id,internalReference:pet.vaccination_card_id,name:pet.name,species:pet.species,speciesOther:pet.species_other || '',breed:pet.breed,sex:pet.sex,birth:date(pet.birth),registeredAt:pet.created_at?new Date(pet.created_at).toLocaleDateString('en-CA',{timeZone:'Asia/Manila'}):null,color:pet.color || '',neutered:pet.neutered || '',microchipNumber:pet.microchip_number || '',microchipDate:date(pet.microchip_date),ownerName:owner.name || 'Not recorded'},owner,events};
 }
 // Caller owns the transaction. Card changes and their audit entry commit together.
 export async function refreshDigitalVetCard(client,petId,{pet,history}={}){

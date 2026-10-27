@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {validWalkInBirth,walkInBirthWindow,savedWalkInRegistration} from '../src/walkInRegistration.js';
 test('birth dates use the clinic window and reject normalized impossible dates',()=>{
  const window=walkInBirthWindow();
- assert.equal(validWalkInBirth(window.yesterday),true);assert.equal(validWalkInBirth(window.today),false);
+ assert.equal(validWalkInBirth(window.today),true,'a pet born today can be registered');
+ assert.equal(validWalkInBirth('2000-01-01'),true);assert.equal(validWalkInBirth('1999-12-31'),false);
+ const tomorrow=new Date(`${window.today}T00:00:00Z`);tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
+ assert.equal(validWalkInBirth(tomorrow.toISOString().slice(0,10)),false);
  assert.equal(validWalkInBirth('2025-02-30'),false);assert.equal(validWalkInBirth(''),false);
  assert.equal(validWalkInBirth('1900-01-01'),false);
 });

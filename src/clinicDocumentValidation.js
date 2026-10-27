@@ -1,3 +1,4 @@
+import {dateRangeErrors} from './dateRules.js';
 export const clinicDocumentFields = [
  ['name','Clinic name',150],['address','Clinic address',500],['phone','Clinic phone',40],
  ['email','Clinic email',254],['registration','Clinic registration / license reference',150],
@@ -11,9 +12,9 @@ export function clinicDocumentErrors(form) {
  if(form.confirmed!==true)errors.confirmed='Confirm that you checked the clinic details against the recorded source.';
  return errors;
 }
-export function timelineFilterErrors(filters) {
- const errors={};
- for(const key of ['from','to'])if(filters[key] && (!/^\d{4}-\d{2}-\d{2}$/.test(filters[key]) || !Number.isFinite(Date.parse(filters[key])) || new Date(filters[key]).toISOString().slice(0,10)!==filters[key]))errors[key]='Enter a real date.';
- if(!errors.from && !errors.to && filters.from && filters.to && filters.to<filters.from)errors.to='End date must be on or after the start date.';
+// Card timeline filters: real dates from the pet's registration day (or 2000-01-01) to today, in order.
+export function timelineFilterErrors(filters, registeredAt = '') {
+ const errors=dateRangeErrors(filters.from,filters.to);
+ if(registeredAt)for(const key of ['from','to'])if(!errors[key] && filters[key] && filters[key]<registeredAt)errors[key]=`Choose a date on or after ${registeredAt}, when this pet was registered.`;
  return errors;
 }

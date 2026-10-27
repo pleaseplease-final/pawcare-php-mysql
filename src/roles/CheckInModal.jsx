@@ -1,3 +1,4 @@
+import { TEMP_MIN, TEMP_MAX } from "../vitalValidation.js";
 import ClinicDialog from '../components/ClinicDialog.jsx';
 import AllergyEditor from '../components/AllergyEditor.jsx';
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
@@ -71,7 +72,7 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
   const weightAnalysis = assessWeight(weight, species, pet.breed || "", lastWeight);
   const tempAnalysis = assessTemp(temp, species);
   // Triage follows the measured temperature and an emergency reason until staff choose otherwise.
-  const suggestedTriage = /emergency|critical/i.test(serviceReason) || tempAnalysis?.status === "high_fever" ? "Emergency"
+  const suggestedTriage = /emergency|critical/i.test(serviceReason) || tempAnalysis?.status === "high_fever" || tempAnalysis?.severity === "critical" ? "Emergency"
     : ["mild_fever", "hypothermia"].includes(tempAnalysis?.status) ? "Priority" : "Routine";
   const triage = triageChoice || suggestedTriage;
   const setTriage = setTriageChoice;
@@ -92,8 +93,8 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
   };
 
   const formType=visitFormType(appt);
-  const surgeryVisit=appt?.service==='surgery' || /surg|dental/i.test(serviceReason);
-  const reasonPresets=appt?.service==='surgery'?['Surgical assessment','Dental assessment','Surgery – Follow-up']:formType==='consultation'?['Routine Consultation & Exam','Vomiting / Diarrhea','Skin / Allergy Concern','Emergency / Critical']:formType==='deworming'?['Routine Deworming','Deworming Follow-up']:['Grooming & Sanitary','Nail Trim / Ear Cleaning'];
+  const surgeryVisit=false;
+  const reasonPresets=formType==='consultation'?['Routine Consultation & Exam','Vomiting / Diarrhea','Skin / Allergy Concern','Emergency / Critical']:formType==='deworming'?['Routine Deworming','Deworming Follow-up']:['Grooming & Sanitary','Nail Trim / Ear Cleaning'];
 
   const review = useSubmissionReview([weight,temp,triage,serviceReason,notes,fasted,currentVisit,pet,owner,stale,TODAY]);
 
@@ -121,8 +122,8 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
       setValErr("Please enter a valid patient weight between 0.05 kg and 120 kg.");
       return;
     }
-    if (isNaN(t) || t < 33 || t > 45) {
-      setValErr("Please enter a valid body temperature between 33°C and 45°C.");
+    if (isNaN(t) || t < TEMP_MIN || t > TEMP_MAX) {
+      setValErr(`Please enter the measured body temperature (${TEMP_MIN}–${TEMP_MAX}°C).`);
       return;
     }
     const fieldError = intakeFieldsError({weight:w,temp:t,triageLevel:triage,fasted:surgeryVisit && fasted,notes}, serviceReason.trim() || appt.reason);
@@ -401,7 +402,7 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
                   {tempAnalysis.status === "high_fever" ? (
                     <div style={{ padding: "8px 12px", background: "#fef2f2", border: "1px solid #f87171", borderRadius: "8px", color: "#991b1b", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}>
                       <Flame size={16} color="#dc2626" />
-                      <span>HIGH FEVER DETECTED ({temp}°C)! This patient will be flagged with critical priority in Dr. Queue.</span>
+                      <span role="alert">{tempAnalysis.severity === "critical" ? tempAnalysis.advice : `HIGH FEVER DETECTED (${temp}°C)! This patient will be flagged with critical priority in Dr. Queue.`}</span>
                     </div>
                   ) : tempAnalysis.status === "mild_fever" ? (
                     <div style={{ padding: "8px 12px", background: "#fffbeb", border: "1px solid #fde047", borderRadius: "8px", color: "#854d0e", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -411,7 +412,7 @@ export default function CheckInModal({ appt, db, setDb, me, onClose, onCheckedIn
                   ) : tempAnalysis.status === "hypothermia" ? (
                     <div style={{ padding: "8px 12px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", color: "#1e40af", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}>
                       <Snowflake size={16} color="#2563eb" />
-                      <span>Subnormal Temperature / Hypothermia Warning ({temp}°C). Provide thermal blanket.</span>
+                      <span role="alert">{tempAnalysis.severity === "critical" ? tempAnalysis.advice : `Subnormal Temperature / Hypothermia Warning (${temp}°C). Provide thermal blanket.`}</span>
                     </div>
                   ) : (
                     <div style={{ color: "#16a34a", fontWeight: "600", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>

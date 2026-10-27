@@ -13,7 +13,7 @@ export function validateOwnerBooking(v, { pets, vets, appointments, records, edi
   const errors = {}, service = SERVICES[v.service];
   if (v.service === 'vaccination') { const error = vaccineChoiceError(v.vaccineId, pets.find(p=>p.id===v.petId)?.species); if(error) errors.vaccineId=error; }
   if (!service) errors.service = 'Choose a service from the list.';
-  else if (service.retired && editing?.service !== v.service) errors.service = 'Book a check-up. The veterinarian will advise if surgery or a dental procedure is needed.';
+  else if (service.retired && editing?.service !== v.service) errors.service = 'This service is no longer offered. Book a check-up instead.';
   if (!pets.some(p => p.id === v.petId)) errors.petId = 'Choose one of your pets.';
   if (!vets.some(vet => vet.id === v.vetId)) errors.vetId = 'Choose a current veterinarian.';
   if (!isBookingDate(v.date)) errors.date = 'Choose a valid calendar date.';

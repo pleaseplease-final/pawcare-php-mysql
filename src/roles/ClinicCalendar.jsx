@@ -84,9 +84,6 @@ export function getServiceCategory(reason = "") {
   if (r.includes("vaccin") || r.includes("rabies") || r.includes("5-in-1") || r.includes("deworm")) {
     return { label: "Vaccine & Prophylaxis", color: "#047857", bg: "#ecfdf5", border: "#a7f3d0", Icon: Syringe };
   }
-  if (r.includes("surgery") || r.includes("spay") || r.includes("neuter") || r.includes("dental")) {
-    return { label: "Surgery & Dental", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", Icon: Scissors };
-  }
   if (r.includes("blood") || r.includes("lab") || r.includes("x-ray") || r.includes("fecal") || r.includes("test")) {
     return { label: "Diagnostic & Lab", color: "#b45309", bg: "#fffbeb", border: "#fde68a", Icon: FlaskConical };
   }

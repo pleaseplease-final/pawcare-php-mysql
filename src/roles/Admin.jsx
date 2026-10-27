@@ -268,6 +268,7 @@ export function StaffModal({ db, setDb, me, onClose, onCreated }) {
                 placeholder={f.role === "vet" ? "e.g. Roberto Santos" : f.role === "admin" ? "e.g. Maria Dela Cruz" : "e.g. Liza Ramos"}
                 value={f.name}
                 className={nameError || numWarn ? "bad" : touched.name && !validateName(f.name) ? "ok" : ""}
+                aria-invalid={!!(nameError || numWarn)} aria-describedby="staff-invite-name-msg" maxLength={50}
                 onChange={e => {
                   setTouched(p=>({...p,name:true}));
                   const raw = e.target.value;
@@ -286,15 +287,15 @@ export function StaffModal({ db, setDb, me, onClose, onCreated }) {
                 required
               />
               {(nameError || numWarn) ? (
-                <span className="err" style={{ display: "block", marginTop: "4px", fontSize: "calc(12px * var(--fs, 1))", color: "#dc2626" }}>
+                <span id="staff-invite-name-msg" role="alert" className="err" style={{ display: "block", marginTop: "4px", fontSize: "calc(12px * var(--fs, 1))", color: "#dc2626" }}>
                   {numWarn || nameError}
                 </span>
               ) : touched.name && !validateName(f.name) ? (
-                <span style={{ display: "block", marginTop: "4px", fontSize: "calc(12px * var(--fs, 1))", color: "#16a34a", fontWeight: 600 }}>
+                <span id="staff-invite-name-msg" style={{ display: "block", marginTop: "4px", fontSize: "calc(12px * var(--fs, 1))", color: "#16a34a", fontWeight: 600 }}>
                   Valid name format (letters only, 2-50 characters)
                 </span>
               ) : (
-                <span style={{ fontSize: "calc(11px * var(--fs, 1))", color: "#64748b", marginTop: "3px", display: "block" }}>
+                <span id="staff-invite-name-msg" style={{ fontSize: "calc(11px * var(--fs, 1))", color: "#64748b", marginTop: "3px", display: "block" }}>
                   Letters only, minimum 2 to 50 characters. No numbers allowed.
                 </span>
               )}

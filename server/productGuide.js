@@ -16,8 +16,8 @@ const products = [
   ['calcium', 'Pet vitamins', 'Bone & Joint Care', 'Growing large breed puppies', 'Calcium & Phosphorus Powder/Syrup', 320],
   ['probiotic', 'Pet vitamins', 'Digestive Health', 'Diarrhea / post-antibiotic treatment', 'Veterinary Probiotic & Prebiotic Paste', 750],
   ['silymarin', 'Pet vitamins', 'Organ Support', 'Liver support', 'Silymarin (Milk Thistle) Hepatic Support Supplements', 950],
-  ['hard_collar', 'Pet accessories', 'Post-Surgery / Recovery', 'Preventing licking of wounds', 'Hard Plastic E-Collar ("Cone of Shame")', 250],
-  ['soft_collar', 'Pet accessories', 'Post-Surgery / Recovery', 'Mild scratching / sleeping comfort', 'Inflatable Soft Recovery Collar / Recovery Suit', 650],
+  ['hard_collar', 'Pet accessories', 'Wound Recovery', 'Preventing licking of wounds', 'Hard Plastic E-Collar ("Cone of Shame")', 250],
+  ['soft_collar', 'Pet accessories', 'Wound Recovery', 'Mild scratching / sleeping comfort', 'Inflatable Soft Recovery Collar / Recovery Suit', 650],
   ['nylon_muzzle', 'Pet accessories', 'Restraint & Safety', 'Temporary clinic restraint', 'Nylon Clinic Muzzle (Temporary use only)', 150],
   ['basket_muzzle', 'Pet accessories', 'Restraint & Safety', 'Panting required / public walking safety', 'Basket Muzzle', 450],
   ['slip_leash', 'Pet accessories', 'Walking & Transport', 'General discharge / transfer', 'Standard Slip Leash', 200],
@@ -29,9 +29,9 @@ const products = [
   ['renal_diet', 'Prescription diet', 'Dietary (Renal)', 'Renal dietary care', 'Renal Support / Low Phosphorus Diet', 1550],
   ['weight_diet', 'Prescription diet', 'Dietary (Weight Management)', 'Weight management', 'Metabolic / Satiety Weight Reduction Kibble', 1350],
   ['recovery_food', 'Prescription diet', 'Dietary (Recovery)', 'Recovery nutrition', 'Recovery / A/D High-Calorie Soft Food', 280],
-  ['toothpaste', 'Dental & ear care', 'Dental Care', 'Daily maintenance', 'Enzymatic Pet Toothpaste (Poultry/Beef Flavor)', 450],
-  ['dental_chews', 'Dental & ear care', 'Dental Care', 'Pets intolerant to brushing', 'Water Additive Plaque Remover / Dental Chews', 550],
-  ['ear_flush', 'Dental & ear care', 'Ear Care', 'Routine cleaning / wax buildup', 'Veterinary Ear Flush (Non-medicated)', 380],
+  ['toothpaste', 'Ear care', 'Removed', 'Daily maintenance', 'Enzymatic Pet Toothpaste (Poultry/Beef Flavor)', 450],
+  ['dental_chews', 'Ear care', 'Removed', 'Pets intolerant to brushing', 'Water Additive Plaque Remover / Dental Chews', 550],
+  ['ear_flush', 'Ear care', 'Ear Care', 'Routine cleaning / wax buildup', 'Veterinary Ear Flush (Non-medicated)', 380],
 ];
 export const GUIDE_PRODUCTS = products.map(([id, category, group, need, name, price]) => ({
   id: `product_${id}`, category, group, need, name, price,

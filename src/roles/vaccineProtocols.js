@@ -142,15 +142,7 @@ export const CLINICAL_PROTOCOLS = {
     },
   ],
 
-  Rodent: [
-    {
-      vaccine: "Dental & Occlusion Clinical Assessment",
-      brand: "VCMS Diagnostic Protocol",
-      type: "Dental Surveillance",
-      description: "Incisor and molar overgrowth surveillance and nutritional audit.",
-      getSchedule: () => ({ initialDue: plus(7), boosterDays: 180, doseNo: 1, doseOf: 2 }),
-    },
-  ],
+  Rodent: [],
 
   Avian: [
     {

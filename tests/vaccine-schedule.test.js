@@ -19,12 +19,8 @@ test('under-age rabies warns; unknown vaccines stay manual', () => {
 });
 
 import {procedureErrors,procedureNote,procedureRequired} from '../src/procedureDecision.js';
-test('surgery assessments need a recorded vet decision', () => {
-  assert.ok(procedureRequired({service:'surgery',reason:'Surgery – Surgical assessment'},true));
-  assert.ok(!procedureRequired({service:'surgery',reason:'Surgery – Follow-up'},true));
-  assert.ok(!procedureRequired({service:'checkup',reason:'Annual check-up'},true));
-  assert.ok(procedureErrors({procedureRequired:true,procedureDecision:''}).procedureDecision);
-  assert.ok(procedureErrors({procedureDecision:'Suitable - book the procedure',procedureType:''}).procedureType);
-  assert.deepEqual(procedureErrors({procedureDecision:'Not needed'}),{});
-  assert.match(procedureNote({procedureDecision:'Owner declined',procedureType:'Dental procedure'}),/Dental procedure: Owner declined/);
+test('surgery and dental decisions are no longer recorded (not offered by the clinic)', () => {
+  assert.equal(procedureRequired({service:'surgery',reason:'Surgery – Surgical assessment'},true),false);
+  assert.deepEqual(procedureErrors({procedureRequired:true,procedureDecision:''}),{});
+  assert.equal(procedureNote({procedureDecision:'Owner declined',procedureType:'Dental procedure'}),'');
 });

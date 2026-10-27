@@ -328,7 +328,7 @@ test('consent saves without an alternate contact, preserves owner contact access
 
 test('admission dropdown selections survive save, retry and reload in private care history',async()=>{
  const f=await fixture();
- Object.assign(f.body,{reasonChoice:'Post-procedure recovery',clinicalNote:'Post-procedure recovery',planTemplate:'Post-procedure recovery',observationTemplate:'Recovery observation',planConfirmed:true});
+ Object.assign(f.body,{reasonChoice:'Supportive care and stabilization',clinicalNote:'Supportive care and stabilization',planTemplate:'Supportive care and stabilization',observationTemplate:'Recovery observation',planConfirmed:true});
  const saved=await call('vet','POST','/',f.body);assert.equal(saved.status,200,JSON.stringify(saved));
  assert.equal((await call('vet','POST','/',f.body)).status,200);
  const detail=await call('vet','GET',`/${saved.data.admission.id}`);assert.equal(detail.status,200);

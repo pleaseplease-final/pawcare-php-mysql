@@ -1,3 +1,4 @@
+import { TEMP_MIN, TEMP_MAX } from '../vitalValidation.js';
 import {useEffect,useRef,useState} from 'react';
 import {clinicRequest} from '../clinicApi.js';
 import {useFormValidation} from '../components/useFormValidation.jsx';
@@ -19,7 +20,7 @@ export function Correction({entry,onCancel,onSaved}) {
  };
  return <form {...validation.formProps} onSubmit={submit} aria-label="Correct measurement">
   <p>The original entry stays in the history. Use intake or admission recording for a new measurement.</p>
-  <label>Correct value ({entry.unit})<input type="number" step="0.01" min={entry.kind==='weight'?0.01:33} max={entry.kind==='weight'?120:45} required {...validation.field('value')} value={value} onChange={e=>setValue(e.target.value)} disabled={saving}/>{validation.feedback('value')}</label>
+  <label>Correct value ({entry.unit})<input type="number" step="0.01" min={entry.kind==='weight'?0.01:TEMP_MIN} max={entry.kind==='weight'?120:TEMP_MAX} required {...validation.field('value')} value={value} onChange={e=>setValue(e.target.value)} disabled={saving}/>{validation.feedback('value')}</label>
   <label>Reason for correction<textarea required minLength={3} maxLength={500} {...validation.field('reason')} value={reason} onChange={e=>setReason(e.target.value)} disabled={saving}/>{validation.feedback('reason')}</label>
   {error&&<p role="alert" className="err">{error}</p>}<button type="submit" className="btn sm" disabled={saving}>Save linked correction</button><button type="button" className="btn ghost sm" onClick={onCancel} disabled={saving}>Cancel</button>
  </form>;

@@ -363,29 +363,6 @@ export async function approveRegistration(client, reqId, user, revision) {
       Object.values(v1)
     );
     seeded.push(v1);
-  } else if (isRodent) {
-    const v1 = {
-      id: "v_" + Math.random().toString(36).slice(2, 8),
-      pet_id: newPetId,
-      card_id: cardId,
-      vaccine: "Dental & Occlusion Clinical Exam",
-      brand: "VCMS Protocol",
-      batch: "AUTO-DEN-01",
-      date: today,
-      next_due: addDays(today, 180),
-      dose_no: 1,
-      dose_of: 2,
-      done: false,
-      automated: true,
-      protocol_type: "Rodent Dental Protocol",
-      recorded_by: actorName || "Vet Assistant"
-    };
-    await client.query(
-      `INSERT INTO vaccinations (id, pet_id, card_id, vaccine, brand, batch, date, next_due, dose_no, dose_of, done, automated, protocol_type, recorded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-      Object.values(v1)
-    );
-    seeded.push(v1);
   } else if (isAvian) {
     const v1 = {
       id: "v_" + Math.random().toString(36).slice(2, 8),

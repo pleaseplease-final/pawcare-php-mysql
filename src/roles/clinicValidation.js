@@ -1,3 +1,4 @@
+import { TEMP_MIN, TEMP_MAX } from '../vitalValidation.js';
 /** Client-side workflow validation. No database, API, or payment gateway. */
 export const VISIT_STATES = Object.freeze(['Pending Approval','Scheduled','Checked-in','In consultation','Completed','Cancelled','Rejected','No-show']);
 export const BILLING_STATES = Object.freeze(['Unbilled','Unpaid','Paid']);
@@ -34,7 +35,7 @@ export function validateAppointment({petId,ownerId,date,reason,existing=[],exclu
 export function validateIntake({weight,temp,notes}={}) {
   const errors={}, w=Number(weight), t=Number(temp);
   if (weight === '' || weight == null || !Number.isFinite(w) || w<=0 || w>250) errors.weight='Enter a realistic weight greater than 0 kg.';
-  if (temp !== '' && temp != null && (!Number.isFinite(t) || t<25 || t>45)) errors.temp='Check the temperature value (°C).';
+  if (temp !== '' && temp != null && (!Number.isFinite(t) || t<TEMP_MIN || t>TEMP_MAX)) errors.temp=`Temperature must be between ${TEMP_MIN} and ${TEMP_MAX}°C.`;
   if (String(notes??'').length>2000) errors.notes='Notes cannot exceed 2,000 characters.';
   return errors;
 }

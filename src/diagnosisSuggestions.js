@@ -1,6 +1,6 @@
 // Initial documentation shortcuts only; the veterinarian assesses each patient.
 // Administrators can edit or retire every entry after these defaults are seeded.
-export const originalDiagnosisSuggestions = ['Dermatitis','Otitis externa','Gastroenteritis','Parasitic infection','Dental disease','Injury / wound','No abnormal findings on examination'];
+export const originalDiagnosisSuggestions = ['Dermatitis','Otitis externa','Gastroenteritis','Parasitic infection','Injury / wound','No abnormal findings on examination'];
 export const diagnosisSuggestions = [
   ...originalDiagnosisSuggestions, 'Allergic dermatitis',
   'Flea allergy dermatitis', 'Atopic dermatitis', 'Pyoderma', 'Dermatophytosis',

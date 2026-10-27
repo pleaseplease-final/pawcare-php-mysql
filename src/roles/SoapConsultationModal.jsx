@@ -17,6 +17,8 @@ import { PaginatedList } from "../components/Pagination.jsx";
 import {HistoryControls} from "../ClinicHistory.jsx";
 import { useSubmissionReview } from "../components/SubmissionReview.jsx";
 import { validateSoapFields } from "../soapValidation.js";
+import { FOLLOW_UP_MAX_DAYS } from "../soapValidation.js";
+import { EARLIEST_DATE, addDays } from "../dateRules.js";
 import PrescriptionBuilder from "./PrescriptionBuilder.jsx";
 import { CareGuidePanel, SnapshotPanel } from "./CareGuidePanel.jsx";
 import { courseEnd } from "../clinicalGuide.js";
@@ -328,7 +330,7 @@ export default function SoapConsultationModal({ appt, pet, db, setDb, me, onClos
         {review.card}<ExternalHistorySummary patient={pet} />
         {admissionOpen && <AdmissionForm mode="create" me={me}
           visits={[{...expectedVisit,petName:pet.name,ownerName:owner.name}]}
-          consultationContext={{petName:pet.name,ownerName:owner.name,diagnosis:f.diagnosis,treatment:f.treatment,procedure:f.procedureDecision.startsWith('Suitable') ? f.procedureType : ''}}
+          consultationContext={{petName:pet.name,ownerName:owner.name,diagnosis:f.diagnosis,treatment:f.treatment,procedure:''}}
           onClose={()=>setAdmissionOpen(false)} onSaved={admissionSaved} />}
         {closing && <ClinicDialog labelledBy="soap-close-title" onClose={() => setClosing(false)}>
           <div className="modal" style={{width:'min(540px,100%)'}}>
@@ -481,7 +483,7 @@ export default function SoapConsultationModal({ appt, pet, db, setDb, me, onClos
               <h4>{profile.title} · visit details</h4>
               <p>Optional details are included in this visit's history automatically.</p>
               {consultation && careOptions.onset && <div className="fld"><label htmlFor="symptom-start">Symptoms started (optional)</label>
-                <input id="symptom-start" name="symptomStart" type="date" min={pet.birth} max={f.date} value={f.symptomStart || ''} onChange={e=>set('symptomStart',e.target.value)} aria-invalid={!!errs.symptomStart} aria-describedby="symptom-start-error"/>
+                <input id="symptom-start" name="symptomStart" type="date" min={pet.birth || EARLIEST_DATE} max={f.date || TODAY} value={f.symptomStart || ''} onChange={e=>set('symptomStart',e.target.value)} aria-invalid={!!errs.symptomStart} aria-describedby="symptom-start-error"/>
                 <span id="symptom-start-error" className="err" aria-live="polite">{errs.symptomStart}</span>
                 {elapsedDays(f.symptomStart,f.date)!==null && <p role="status">Duration at this visit: {elapsedDays(f.symptomStart,f.date)} day(s)</p>}
               </div>}
@@ -553,7 +555,7 @@ export default function SoapConsultationModal({ appt, pet, db, setDb, me, onClos
                 <input
                   id="soap-date"
                   type="date"
-                  min={appt?.date || pet.birth}
+                  min={appt?.date || pet.birth || EARLIEST_DATE}
                   max={TODAY}
                   aria-invalid={!!errs.date}
                   aria-describedby={errs.date ? "soap-date-error" : undefined}
@@ -624,25 +626,6 @@ export default function SoapConsultationModal({ appt, pet, db, setDb, me, onClos
                 {errs.treatment && <span id="soap-treatment-error" className="err" role="alert">{errs.treatment}</span>}
               </div>
               </details>
-              {consultation && <fieldset className="procedure-decision" style={{gridColumn:'1/-1',borderLeft:'5px solid #7c3aed',background:'#faf5ff'}}>
-                <legend>Surgery / dental decision (veterinarian){procedureRequiredHere && <i> *</i>}</legend>
-                <p>{procedureRequiredHere ? 'This visit was booked as a surgery / dental assessment. Record whether the patient should proceed.' : 'Only if you recommend surgery or a dental procedure for this patient. Leave blank otherwise.'} Booking a visit never decides this for you.</p>
-                <div className="fld"><label htmlFor="procedure-decision">Decision</label>
-                  <select id="procedure-decision" name="procedureDecision" value={f.procedureDecision} aria-invalid={!!errs.procedureDecision} aria-describedby="procedure-decision-error" onChange={e=>chooseProcedure(e.target.value, f.procedureType || (appt?.reason && /dental/i.test(appt.reason) ? 'Dental procedure' : appt?.service==='surgery' ? 'Surgery' : ''))}>
-                    <option value="">{procedureRequiredHere ? 'Choose a decision' : 'No procedure recommended'}</option>
-                    {Object.keys(PROCEDURE_DECISIONS).map(v=><option key={v}>{v}</option>)}
-                  </select><span id="procedure-decision-error" className="err" aria-live="polite">{errs.procedureDecision}</span></div>
-                {f.procedureDecision && f.procedureDecision!=='Not needed' && <>
-                  <div className="fld"><label htmlFor="procedure-type">Procedure</label>
-                    <select id="procedure-type" name="procedureType" value={f.procedureType} aria-invalid={!!errs.procedureType} aria-describedby="procedure-type-error" onChange={e=>chooseProcedure(f.procedureDecision,e.target.value)}>
-                      <option value="">Choose surgery or dental</option>{PROCEDURE_TYPES.map(v=><option key={v}>{v}</option>)}
-                    </select><span id="procedure-type-error" className="err" aria-live="polite">{errs.procedureType}</span></div>
-                  <div className="fld"><label htmlFor="procedure-notes">Pre-procedure instructions / reason (added to the plan)</label>
-                    <textarea id="procedure-notes" name="procedureNotes" rows={2} maxLength={1000} value={f.procedureNotes} aria-invalid={!!errs.procedureNotes} onChange={e=>set('procedureNotes',e.target.value)} />
-                    <span className="err" aria-live="polite">{errs.procedureNotes}</span></div>
-                  {PROCEDURE_DECISIONS[f.procedureDecision]?.followUp && f.procedureType && <p role="status">A follow-up request was prepared below for reception to book. Edit it if needed. If {pet.name} must stay at the clinic for the procedure, use Admit below.</p>}
-                </>}
-              </fieldset>}
               {consultation && <section className="consultation-admission" aria-labelledby="soap-admission-title" style={{gridColumn:'1/-1'}}>
                 <div className="consultation-admission-heading"><div><h4 id="soap-admission-title">Admission · care at the clinic</h4>
                   <p>Admit {pet.name} only if your assessment shows a need for clinic treatment or monitoring. A diagnosis or vaccination visit does not automatically require admission.</p></div>
@@ -807,7 +790,7 @@ export default function SoapConsultationModal({ appt, pet, db, setDb, me, onClos
                         <input
                           type="date"
                           id="soap-followUpDate" aria-invalid={!!errs.followUpDate} aria-describedby="soap-followUpDate-error" name="followUpDate" value={f.followUpDate}
-                          min={TODAY}
+                          min={TODAY} max={addDays(TODAY, FOLLOW_UP_MAX_DAYS)}
                           onChange={e => {set("followUpDate", e.target.value);setF(previous=>({...previous,followUpDays:""}));}}
                         />
                         {errs.followUpDate && <p id="soap-followUpDate-error" className="err" role="alert">{errs.followUpDate}</p>}

@@ -1,6 +1,7 @@
+import { TEMP_MIN, TEMP_MAX } from '../vitalValidation.js';
 import {admissionReasons,carePlanTemplates,monitoringTemplates} from '../admissionTemplates.js';
 import { useFormValidation } from '../components/useFormValidation.jsx';
-import { medicineEventTime, admissionErrors } from '../formValidation.js';
+import { medicineEventTime, admissionErrors, manilaInputValue, OBSERVATION_MAX_DAYS } from '../formValidation.js';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import ClinicDialog from '../components/ClinicDialog.jsx';
@@ -10,7 +11,7 @@ import './admissions.css';
 export default function AdmissionForm({mode,admission,visits = [],consultationContext,me,onClose,onSaved}) {
   const context = useRef(consultationContext).current;
   const sources = useRef(visits).current, revision = useRef(admission?.revision).current;
-  const [form,setForm] = useState({reasonChoice:consultationContext?.procedure ? 'Pre-procedure preparation' : '',planTemplate:'',observationTemplate:'',planConfirmed:false,apptId:consultationContext ? visits[0]?.id || '' : '',clinicalNote:consultationContext?.procedure ? 'Pre-procedure preparation' : '',carePlan:'',ownerUpdate:'',temp:'',weight:'',dischargeInstructions:'',nextObservationAt:'',observationInstructions:'',completeObservation:false,consentConfirmed:false,consentName:'',consentMethod:'',emergencyName:'',emergencyPhone:'',emergencyRelationship:''});
+  const [form,setForm] = useState({reasonChoice:'',planTemplate:'',observationTemplate:'',planConfirmed:false,apptId:consultationContext ? visits[0]?.id || '' : '',clinicalNote:consultationContext?.procedure ? 'Pre-procedure preparation' : '',carePlan:'',ownerUpdate:'',temp:'',weight:'',dischargeInstructions:'',nextObservationAt:'',observationInstructions:'',completeObservation:false,consentConfirmed:false,consentName:'',consentMethod:'',emergencyName:'',emergencyPhone:'',emergencyRelationship:''});
   const [alternateContact,setAlternateContact] = useState(false);
   const [error,setError] = useState(''), [saving,setSaving] = useState(false), [discard,setDiscard] = useState(false);
   const pending = useRef(false), request = useRef(null);
@@ -95,7 +96,7 @@ export default function AdmissionForm({mode,admission,visits = [],consultationCo
             <textarea required={create} rows={3} maxLength={3000} {...validation.field('carePlan')} value={form.carePlan} onChange={event => set('carePlan',event.target.value)} />{validation.feedback('carePlan')}</label>}
           {me.role === 'vet' && !discharge && !release && <fieldset><legend>Next observation · veterinarian schedule</legend>
             <p>{create ? 'Set the first check for the assistant to follow.' : 'Leave both fields blank to keep the saved task. To schedule another check after completion, enter a new time and instructions.'} Times are in Manila (UTC+08:00).</p>
-            <label>Next observation (Manila) {create && '*'}<input type="datetime-local" required={create} {...validation.field('nextObservationAt')} value={form.nextObservationAt} disabled={form.completeObservation} onChange={e=>set('nextObservationAt',e.target.value)} />{validation.feedback('nextObservationAt')}</label>
+            <label>Next observation (Manila) {create && '*'}<input type="datetime-local" required={create} min={manilaInputValue()} max={manilaInputValue(Date.now()+OBSERVATION_MAX_DAYS*86400000)} {...validation.field('nextObservationAt')} value={form.nextObservationAt} disabled={form.completeObservation} onChange={e=>set('nextObservationAt',e.target.value)} />{validation.feedback('nextObservationAt')}</label>
             <label>Monitoring template<select {...validation.field('observationTemplate')} value={form.observationTemplate} onChange={e=>template('observationTemplate',e.target.value,'observationInstructions',monitoringTemplates)}><option value="">Choose a starting template (optional)</option>{Object.keys(monitoringTemplates).map(v=><option key={v}>{v}</option>)}<option value="Custom">Custom instructions</option></select>{validation.feedback('observationTemplate')}</label>
             <label>What staff should check {create && '*'}<textarea maxLength={1000} required={create} rows={2} {...validation.field('observationInstructions')} value={form.observationInstructions} disabled={form.completeObservation} onChange={e=>set('observationInstructions',e.target.value)} />{validation.feedback('observationInstructions')}</label>
           </fieldset>}
@@ -116,7 +117,7 @@ export default function AdmissionForm({mode,admission,visits = [],consultationCo
             </>}
           </fieldset>}
           {!discharge && !release && !consent && <div className="admission-measurements">
-            <label>Measured temperature (°C)<input type="number" min="33" max="45" step="0.1" {...validation.field('temp')} value={form.temp} onChange={event => set('temp',event.target.value)} />{validation.feedback('temp')}</label>
+            <label>Measured temperature (°C)<input type="number" min={TEMP_MIN} max={TEMP_MAX} step="0.1" {...validation.field('temp')} value={form.temp} onChange={event => set('temp',event.target.value)} />{validation.feedback('temp')}</label>
             <label>Measured weight (kg)<input type="number" min="0.05" max="120" step="0.01" {...validation.field('weight')} value={form.weight} onChange={event => set('weight',event.target.value)} />{validation.feedback('weight')}</label>
           </div>}
           {!consent && <label>Message visible to owner {create ? '*' : '(optional)'}<textarea required={create} rows={3} maxLength={2000} {...validation.field('ownerUpdate')} value={form.ownerUpdate} onChange={event => set('ownerUpdate',event.target.value)} placeholder="A clear update about the pet’s care and next steps" />{validation.feedback('ownerUpdate')}</label>}

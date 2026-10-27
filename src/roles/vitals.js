@@ -1,3 +1,4 @@
+import { TEMP_CRITICAL_LOW, TEMP_CRITICAL_HIGH } from '../vitalValidation.js';
 // Clinical veterinary intake rules & automated vitals analysis
 
 export const BREED_WEIGHTS = {
@@ -115,6 +116,20 @@ export function assessTemp(celsius, species = "Dog") {
   const conf = SPECIES_DEFAULTS[species] || SPECIES_DEFAULTS.Other;
   const { tempMin, tempMax } = conf;
 
+  if (t < TEMP_CRITICAL_LOW) {
+    return {
+      temp: t,
+      status: "hypothermia",
+      label: "CRITICAL Hypothermia",
+      flag: "CRITICAL LOW TEMPERATURE",
+      color: "#1d4ed8",
+      badgeClass: "er",
+      alert: true,
+      severity: "critical",
+      advice: `Temperature ${t}°C is critically low (normal ${tempMin}–${tempMax}°C). Start active warming and alert the veterinarian now.`,
+    };
+  }
+
   if (t < tempMin - 0.5) {
     return {
       temp: t,
@@ -140,6 +155,20 @@ export function assessTemp(celsius, species = "Dog") {
       alert: false,
       severity: "low",
       advice: `Temperature is on the lower threshold.`,
+    };
+  }
+
+  if (t >= TEMP_CRITICAL_HIGH) {
+    return {
+      temp: t,
+      status: "high_fever",
+      label: "CRITICAL Hyperthermia",
+      flag: "CRITICAL HIGH TEMPERATURE",
+      color: "#b91c1c",
+      badgeClass: "er",
+      alert: true,
+      severity: "critical",
+      advice: `Temperature ${t}°C is critically high (normal ${tempMin}–${tempMax}°C). Possible heatstroke: start cooling and alert the veterinarian now.`,
     };
   }
 

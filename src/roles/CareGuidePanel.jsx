@@ -43,7 +43,6 @@ export function CareGuidePanel({diagnosis, catalog, selectedIds, onApply, petNam
     {!!merged.services.length && <p>Consider confirming these services if you perform them for {petName}: {merged.services.map(id => byId.get(id)?.name || id.replace('srv_', '')).join(', ')}.</p>}
     {!!merged.followUpDays && <label className="service-check"><input type="checkbox" checked={!off.has('followUp')} onChange={() => toggle('followUp')} /> Request a recheck in {merged.followUpDays} day(s)</label>}
     {merged.admitHint && <p role="note"><b>Consider admission</b> if {petName} is dehydrated, weak or not eating. Use Admit below.</p>}
-    {merged.procedure && <p role="note">A dental scaling is a procedure. Record your decision under “Surgery / dental decision” below.</p>}
     <button type="button" className="btn gold sm" onClick={apply}>Apply selected suggestions</button>
     {done && <p role="status">{done}</p>}
   </section>;

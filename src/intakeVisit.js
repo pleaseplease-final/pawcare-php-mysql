@@ -1,4 +1,4 @@
-import {vitalValueError} from './vitalValidation.js';
+import {vitalValueError, TEMP_MIN, TEMP_MAX} from './vitalValidation.js';
 export function intakeReasonError(reason) {
   if(typeof reason!=='string' || !reason.trim() || reason.length>500) return 'Enter a visit reason of no more than 500 characters.';
   if(!/\p{L}/u.test(reason)) return 'Describe the visit reason using words, such as vomiting or routine checkup.';
@@ -37,7 +37,7 @@ export function savedIntakeVisit(response, expected) {
 export function intakeFieldsError(v, reason) {
   if (!v || typeof v !== 'object' || Array.isArray(v)
     || typeof v.weight !== 'number' || !Number.isFinite(v.weight) || v.weight < 0.05 || v.weight > 120
-    || typeof v.temp !== 'number' || !Number.isFinite(v.temp) || v.temp < 33 || v.temp > 45) return 'Record a valid measured weight (0.05–120 kg) and temperature (33–45°C).';
+    || typeof v.temp !== 'number' || !Number.isFinite(v.temp) || v.temp < TEMP_MIN || v.temp > TEMP_MAX) return `Record a valid measured weight (0.05–120 kg) and temperature (${TEMP_MIN}–${TEMP_MAX}°C).`;
   const measurementError=vitalValueError(v.weight,'weight') || vitalValueError(v.temp,'temp');
   if(measurementError) return measurementError;
   if (v.triageLevel !== undefined && !['Routine','Priority','Emergency'].includes(v.triageLevel)) return 'Choose Routine, Priority or Emergency triage.';

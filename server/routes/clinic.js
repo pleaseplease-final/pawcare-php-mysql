@@ -34,6 +34,7 @@ import { ensurePrescriptionSchema, normalizePrescription, prescriptionInvoice, v
 import { ensureCareSchema, validateCarePlan } from "../careWorkflow.js";
 import { priceCatalog, canonicalInvoice, validateCheckoutAddons } from "../priceCatalog.js";
 import { adminRouter } from "./admin.js";
+import { EARLIEST_DATE } from "../../src/dateRules.js";
 import { refreshManagedCatalog } from "../clinicCatalog.js";
 import { saveAllergies } from "../allergies.js";
 import { ADMINISTERED_VACCINES } from "../../src/vaccineSchedule.js";
@@ -834,29 +835,6 @@ clinicRouter.post("/owner/pets", async (req, res) => {
           Object.values(v1)
         );
         seeded.push(v1);
-      } else if (isRodent) {
-        const v1 = {
-          id: "v_" + Math.random().toString(36).slice(2, 8),
-          pet_id: petId,
-          card_id: cardId,
-          vaccine: "Dental & Occlusion Clinical Exam",
-          brand: "VCMS Protocol",
-          batch: "AUTO-DEN-01",
-          date: today,
-          next_due: addDays(today, 180),
-          dose_no: 1,
-          dose_of: 2,
-          done: false,
-          automated: true,
-          protocol_type: "Rodent Dental Protocol",
-          recorded_by: "System Automation"
-        };
-        await client.query(
-          `INSERT INTO vaccinations (id, pet_id, card_id, vaccine, brand, batch, date, next_due, dose_no, dose_of, done, automated, protocol_type, recorded_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          Object.values(v1)
-        );
-        seeded.push(v1);
       } else if (isAvian) {
         const v1 = {
           id: "v_" + Math.random().toString(36).slice(2, 8),
@@ -963,7 +941,7 @@ clinicRouter.post("/pets/:id/weights", async (req, res) => {
     if(typeof req.body.measuredAt!=='string'||!validDate(req.body.measuredAt.slice(0,10))||!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(req.body.measuredAt)||!Number.isFinite(Date.parse(req.body.measuredAt))||Date.parse(req.body.measuredAt)>Date.now())throw registrationError('Enter the actual measurement date and time with a timezone, not in the future.');
     const date=clinicClock(new Date(req.body.measuredAt)).date;
     if (typeof kg !== 'number' || !Number.isFinite(kg) || kg < 0.05 || kg > 120 || Math.abs(kg*100-Math.round(kg*100)) > 0.000001) throw registrationError('Enter a measured weight from 0.05 to 120 kg with at most two decimal places.');
-    if (!validDate(date) || date > clinicClock().date) throw registrationError('Enter a real measurement date that is not in the future.');
+    if (!validDate(date) || date > clinicClock().date || date < EARLIEST_DATE) throw registrationError('Enter a real measurement date from 2000 onward that is not in the future.');
     const result = await withTransaction(async client => {
       const visit=(await client.query('SELECT * FROM appointments WHERE id=$1 FOR UPDATE',[visitId])).rows[0];
       if(!visit||visit.pet_id!==req.params.id)throw registrationError('Choose a visit for this patient.',404);
@@ -1226,8 +1204,8 @@ async function saveBooking(req, res, editing = false) {
       await lockRegistrationOwner(client,patient.owner_id);
       const registration=(await client.query('SELECT registration_status FROM pets WHERE id=$1',[v.petId])).rows[0];
       if(registration?.registration_status==='Declined') throw bookingError('Correct and resubmit this pet registration before requesting a visit.',409);
-      // Surgery and dental procedures are decided by the veterinarian during a check-up. Visits already booked as surgery can still be rescheduled.
-      if(v.service==='surgery' && previous?.service!=='surgery') throw bookingError('Book a check-up. The veterinarian will advise if surgery or a dental procedure is needed.');
+      // The old assessment slot is no longer offered. Visits already booked with it can still be rescheduled.
+      if(v.service==='surgery' && previous?.service!=='surgery') throw bookingError('This service is no longer offered. Book a check-up instead.');
       if(previous && req.user.role==='assistant') {
         // Reception reschedules an existing request; all clinical/request fields stay immutable.
         const fixed={id:previous.id,petId:previous.pet_id,vetId:previous.vet_id,service:previous.service,reason:previous.reason,notes:previous.notes || '',followUpId:previous.follow_up_id || null,amount:Number(previous.amount),durationMinutes:previous.duration_minutes,bookingKind:previous.booking_kind};
@@ -1951,7 +1929,7 @@ clinicRouter.post("/consultations", async (req, res) => {
     await ensurePetRegistrationSchema();
     const rx = normalizePrescription(req.body.prescriptionItems, prescription);
     const services = clinicalCharges(req.body.performedServices, vaccination);
-    if (!validDate(date) || date > clinicClock().date) throw bookingError("Enter a valid administration / consultation date that is not in the future.");
+    if (!validDate(date) || date > clinicClock().date || date < EARLIEST_DATE) throw bookingError("Enter a valid administration / consultation date from 2000 onward that is not in the future.");
     if (vaccination && (!Number.isInteger(vaccination.doseNo) || vaccination.doseNo < 1 || !Number.isInteger(vaccination.doseOf) || vaccination.doseOf < vaccination.doseNo || vaccination.doseOf > 20)) throw bookingError("Confirm the administered dose number and total planned doses (1–20).");
     if (vaccination && (vaccination.scheduleApproved !== true || !boosterDate(date, vaccination.intervalDays) || vaccination.nextDue !== boosterDate(date, vaccination.intervalDays))) throw bookingError("Approve the booster interval and calculated date for this patient.");
     await ensureCheckoutInboxSchema();

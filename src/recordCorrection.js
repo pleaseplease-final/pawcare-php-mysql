@@ -9,7 +9,8 @@ const PET_TEXT_RE = /^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .,'’()\/&\-]*$/;
 
 export const PET_SEXES = ['Male', 'Female'];
 export const PET_NEUTERED = ['Yes', 'No', 'Not sure'];
-export const PET_EARLIEST_BIRTH = '1990-01-01';
+export { PET_BIRTH_EARLIEST as PET_EARLIEST_BIRTH } from './dateRules.js';
+import { petBirthError } from './dateRules.js';
 export const tidy = value => String(value ?? '').trim().replace(/\s{2,}/g, ' ');
 export const phoneKey = value => String(value ?? '').replace(/[\s-]/g, '');
 
@@ -40,10 +41,8 @@ export function petDetailErrors(input, today) {
   else if (!PET_NAME_RE.test(name) || !LETTER_RE.test(name)) errors.name = 'Use letters, numbers and . \' - only.';
   if (breed && (breed.length > 60 || !PET_TEXT_RE.test(breed))) errors.breed = breed.length > 60 ? 'Keep the breed under 60 characters.' : 'Use letters, numbers and basic punctuation only.';
   if (!PET_SEXES.includes(input.sex)) errors.sex = 'Choose male or female.';
-  if (!input.birth) errors.birth = 'Enter the birth date.';
-  else if (!realDay(input.birth)) errors.birth = 'Enter a real calendar date.';
-  else if (input.birth > today) errors.birth = 'Birth date cannot be in the future.';
-  else if (input.birth < PET_EARLIEST_BIRTH) errors.birth = 'Birth date must be 1990 or later.';
+  const birthProblem = petBirthError(input.birth, today);
+  if (birthProblem) errors.birth = birthProblem;
   if (!PET_NEUTERED.includes(input.neutered)) errors.neutered = 'Choose yes, no or not sure.';
   if (color && (color.length > 60 || !PET_TEXT_RE.test(color))) errors.color = color.length > 60 ? 'Keep the colour under 60 characters.' : 'Use letters, numbers and basic punctuation only.';
   if (notes.length > 300) errors.notes = 'Keep notes under 300 characters.';
