@@ -56,7 +56,7 @@
 }
 .shell:is(.th-vet,.th-assistant) .top h1{font-size:clamp(20px,2.2vw,26px);font-weight:700;letter-spacing:-.01em;line-height:1.2}
 .shell:is(.th-vet,.th-assistant) .top p{font-size:calc(13.5px*var(--fs,1));margin-top:2px}
-.shell:is(.th-vet,.th-assistant) .content{max-width:1600px;width:100%;padding:8px clamp(16px,2.4vw,32px) 56px}
+.shell:is(.th-vet,.th-assistant) .content{max-width:none;width:100%;padding:8px clamp(16px,2.4vw,32px) 56px}
 .shell:is(.th-vet,.th-assistant) .burger{place-items:center;width:42px;height:42px;padding:0;border-radius:50%;background:#fff;color:var(--navy);border:1px solid var(--ow-line);box-shadow:var(--ow-shadow)}
 
 /* account button + menu (StaffHeader) */

@@ -114,7 +114,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
       {startingId && <p role="status">Starting consultation… Please wait for confirmation.</p>}
       {actionError && <p role="alert" className="sf-note">{actionError}</p>}
 
-      <div className="desk-grid">
+      <div className="desk-grid desk-solo">
       <div className="desk-main">
       <section className="card vet-queue desk-flow" id="vet-queue">
         <div className="sf-section-hd">

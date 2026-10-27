@@ -6,6 +6,7 @@ import { accountProfile, saveAccountProfile, formatAccountAddress, contactFieldE
 import { PW_RULES, pwStrength, validatePasswordChange, clean, normEmail, normPhone, emOk } from "../../validate.js";
 import { auth, OFFLINE_MSG } from "../../authApi.js";
 import { useLive, Field, onlyDigitsPlus, noSpaces, PhotoUpload } from "./ui.jsx";
+import AddressPicker from "../../components/AddressPicker.jsx";
 
 const LABEL = ["Too weak", "Too weak", "Okay", "Good", "Strong", "Very strong"], COLOR = ["#c0392b", "#c0392b", "#d98e04", "#2f8f5b", "#1b7a43", "#1b7a43"];
 
@@ -79,7 +80,8 @@ function Contact({ o, me, setDb, say, onFormState }) {
   const [busy, setBusy] = useState(false);
   const [top, setTop] = useState("");
 
-  const contactErrors=contactFieldErrors({email,phone,houseStreet,city,state,country,zipCode});
+  const [listErrors,setListErrors]=useState({});
+  const contactErrors={...contactFieldErrors({email,phone,houseStreet,city,state,country,zipCode}),...Object.fromEntries(Object.entries(listErrors).filter(([,message])=>message))};
   const codeErrors=contactCodeErrors(pending,{emailCode,phoneCode});
   const fieldError=key=>srv[key] || (touched[key] ? contactErrors[key] || codeErrors[key] || '' : '');
   const emailErr=contactErrors.email || '', phoneErr=contactErrors.phone || '';
@@ -165,15 +167,11 @@ function Contact({ o, me, setDb, say, onFormState }) {
       </div>
 
       <div className="account-section-heading"><span><MapPin size={19} aria-hidden="true" /></span><div><h3>Address</h3><p>Keep your clinic contact record up to date.</p></div></div>
-      <Field id="phouse" label="House number & street" value={houseStreet} maxLen={120} onChange={value=>editContact('houseStreet',setHouseStreet,value)} onBlur={()=>touch('houseStreet')} error={fieldError('houseStreet')} hint="From registration form" />
-      <div className="ow-account-fields">
-        <Field id="pcity" label="City / Municipality" value={city} maxLen={60} onChange={value=>editContact('city',setCity,value)} onBlur={()=>touch('city')} error={fieldError('city')} hint="City / Municipality" />
-        <Field id="pstate" label="State / Province" value={state} maxLen={60} onChange={value=>editContact('state',setState,value)} onBlur={()=>touch('state')} error={fieldError('state')} hint="Province or region" />
-      </div>
-      <div className="ow-account-fields">
-        <Field id="pcountry" label="Country" value={country} maxLen={60} onChange={value=>editContact('country',setCountry,value)} onBlur={()=>touch('country')} error={fieldError('country')} hint="Country" />
-        <Field id="pzip" label="ZIP / Postal code" value={zipCode} maxLen={20} onChange={value=>editContact('zipCode',setZipCode,value)} onBlur={()=>touch('zipCode')} error={fieldError('zipCode')} hint="ZIP code" />
-      </div>
+      <AddressPicker
+        value={{ houseStreet, city, state, country, zipCode }}
+        errorFor={fieldError} touch={touch} onListErrors={setListErrors}
+        onChange={patch => { const setters = { houseStreet: setHouseStreet, city: setCity, state: setState, country: setCountry, zipCode: setZipCode }; Object.entries(patch).forEach(([key, value]) => editContact(key, setters[key], value)); }}
+        houseStreetField={<Field id="phouse" label="House number & street" req value={houseStreet} maxLen={255} onChange={value=>editContact('houseStreet',setHouseStreet,value)} onBlur={()=>touch('houseStreet')} error={fieldError('houseStreet')} valid={!!houseStreet && touched.houseStreet && !fieldError('houseStreet')} hint="Unit, building, house number and street" autoComplete="address-line1" />} />
 
       <div className="account-address-preview">
         <b>Full Address: </b>
