@@ -152,9 +152,13 @@ export async function sendSms(phone, message) {
           message: message,
         }),
       });
-      const data = await res.json();
-      console.log('PhilSMS sent:', data);
-      return { ok: true, via: 'philsms' };
+      const data = await res.json().catch(() => ({}));
+      // PhilSMS answers 200 with status "error" for rejected messages (no credit, bad number), so check both.
+      if (res.ok && data.status !== 'error') {
+        console.log('PhilSMS sent:', data);
+        return { ok: true, via: 'philsms' };
+      }
+      console.warn('PhilSMS notice:', data.message || res.statusText);
     } catch (err) {
       console.error('PhilSMS failed:', err.message);
     }

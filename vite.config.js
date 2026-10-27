@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: "/",
   plugins: [react()],
   build: {
@@ -17,9 +17,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        // The Node API (npm run dev, port 3000). `npm run dev:php` starts Vite in "php" mode for the PHP server on 8000.
+        target: mode === "php" ? "http://127.0.0.1:8000" : `http://127.0.0.1:${process.env.PORT || 3000}`,
         changeOrigin: true
       }
     }
   }
-});
+}));
