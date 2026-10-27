@@ -1,0 +1,64 @@
+/* Sales & Financial Audit: period tabs, clickable KPI cards and the printed statement of collections. */
+.sales-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;background:#fff;padding:16px 20px;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.sales-period-tabs{display:inline-flex;gap:4px;padding:4px;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0}
+.sales-period-tabs .btn{border-radius:9px;min-width:74px;font-weight:700}
+.sales-date-fld{margin:0;display:grid;gap:2px}
+.sales-range-note{font-size:calc(11px*var(--fs,1));color:#64748b;min-height:1em}
+.sales-date-fld .err{font-size:calc(11.5px*var(--fs,1))}
+
+.sales-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:18px}
+.sales-kpi{display:flex;flex-direction:column;align-items:stretch;text-align:left;font:inherit;cursor:pointer;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+.sales-kpi:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(15,23,42,.08)}
+.sales-kpi:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+.sales-kpi.is-active{border-color:#2563eb;box-shadow:0 0 0 2px #2563eb inset,0 6px 16px rgba(37,99,235,.12)}
+.sales-kpi-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;font-size:calc(12px*var(--fs,1));font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b}
+.sales-kpi-value{font-size:calc(24px*var(--fs,1));font-weight:800}
+.sales-kpi-detail{font-size:calc(12px*var(--fs,1));color:#64748b;margin-top:4px}
+.sales-kpi-hint{margin-top:10px;font-size:calc(11px*var(--fs,1));font-weight:700;color:#2563eb}
+.sales-kpi-primary{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(30,58,138,.15)}
+.sales-kpi-primary .sales-kpi-head{color:#93c5fd}.sales-kpi-primary .sales-kpi-head svg{color:#60a5fa}
+.sales-kpi-primary .sales-kpi-value{font-size:calc(28px*var(--fs,1))}
+.sales-kpi-primary .sales-kpi-detail{color:#bfdbfe}.sales-kpi-primary .sales-kpi-hint{color:#fde68a}
+.sales-kpi-primary.is-active{box-shadow:0 0 0 3px #fbbf24 inset,0 6px 16px rgba(30,58,138,.25)}
+.sales-kpi-cash .sales-kpi-value,.sales-kpi-cash svg{color:#166534}
+.sales-kpi-digital .sales-kpi-value{color:#0369a1}.sales-kpi-digital svg{color:#0284c7}
+.sales-kpi-warn{background:#fffbeb;border:1.5px solid #fde047}.sales-kpi-warn .sales-kpi-head{color:#854d0e}.sales-kpi-warn .sales-kpi-value{color:#b45309}.sales-kpi-warn svg{color:#d97706}
+.sales-kpi-muted{background:#f8fafc}.sales-kpi-muted .sales-kpi-value{color:#64748b}.sales-kpi-muted svg{color:#94a3b8}
+.sales-row{border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s ease}
+.sales-row:hover{background:#f0f9ff}
+
+/* The printed report exists only on paper. */
+.sales-report-doc{display:none}
+@page sales{size:A4 portrait;margin:14mm 12mm 16mm;@bottom-right{content:"Page " counter(page) " of " counter(pages);font:8pt Georgia,serif;color:#444}}
+@media print{
+  body #root .sales-report-doc{page:sales;font-family:Georgia,"Times New Roman",serif!important;font-size:9.5pt;line-height:1.4;color:#111}
+  body #root .sales-report-doc *{font-family:inherit!important}
+  .srd-letterhead{display:flex!important;justify-content:space-between;align-items:flex-start;gap:8mm;padding-bottom:3mm;border-bottom:3px double #111!important}
+  .srd-letterhead>div{display:flex;flex-direction:column;gap:1mm;font-size:9pt}
+  .srd-clinic{font-size:16pt;letter-spacing:.03em;text-transform:uppercase}
+  .srd-meta{margin:0;display:grid;gap:1mm;font-size:8.5pt;text-align:right}
+  .srd-meta div{display:flex;gap:2mm;justify-content:flex-end}.srd-meta dt{font-weight:700}.srd-meta dd{margin:0}
+  .srd-title{text-align:center;font-size:14pt!important;letter-spacing:.12em;margin:6mm 0 1mm!important}
+  .srd-subtitle{text-align:center;font-size:9pt;font-style:italic;margin:0 0 5mm!important}
+  body #root .srd-info{margin-bottom:5mm;font-size:9pt!important}
+  body #root .srd-info :is(th,td){border:1px solid #777!important;padding:3px 6px!important;text-align:left}
+  body #root .srd-info th{width:18%;font-weight:700;background:#f0f0f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .srd-section{font-size:10.5pt!important;text-transform:uppercase;letter-spacing:.06em;margin:5mm 0 2mm!important;break-after:avoid}
+  body #root .srd-table{font-size:8.5pt!important}
+  body #root .srd-table :is(th,td){border:1px solid #777!important;padding:3px 5px!important;vertical-align:top;line-height:1.3!important}
+  body #root .srd-table thead th{background:#e8e8e8!important;font-weight:700;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body #root .srd-table tfoot th{background:#f0f0f0!important;font-weight:700;text-align:left;border-top:2px solid #111!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body #root .srd-table .num{text-align:right!important;white-space:nowrap}
+  body #root .srd-summary{width:65%!important}
+  .srd-register .mono{font-family:"Courier New",monospace!important;font-size:7.5pt}
+  .srd-register small{display:block;font-size:7pt}
+  .srd-empty{text-align:center;font-style:italic;padding:4mm!important}
+  .srd-note{font-size:8.5pt;margin:2mm 0 0!important}
+  .srd-certify{margin:7mm 0 0!important;font-size:9pt;font-style:italic;break-inside:avoid}
+  .srd-signatures{display:grid!important;grid-template-columns:repeat(3,1fr);gap:10mm;margin-top:14mm;break-inside:avoid}
+  .srd-signatures>div{display:flex;flex-direction:column;gap:1mm}
+  .srd-sign-role{font-size:8.5pt;font-weight:700}
+  .srd-sign-line{display:block;min-height:9mm;border-bottom:1px solid #111!important;padding-top:5mm;text-align:center;font-weight:700;font-size:9.5pt}
+  .srd-sign-caption{font-size:7.5pt;text-align:center;color:#444!important}
+  .srd-footer{margin-top:8mm;padding-top:2mm;border-top:1px solid #777!important;font-size:7.5pt;text-align:center;color:#444!important}
+}

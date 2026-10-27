@@ -7,7 +7,7 @@ export const csvCell = value => {
   const text = /^[\s]*[=+@-]/.test(raw) ? `'${raw}` : raw;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
-const METHOD = {cash: 'Cash', gcash: 'GCash', maya: 'Maya', card: 'Credit / Debit Card', other: 'Other', unrecorded: 'Not recorded'};
+export const METHOD_LABELS = {cash: 'Cash', gcash: 'GCash', maya: 'Maya', card: 'Credit / Debit Card', other: 'Other', unrecorded: 'Not recorded'};
 
 // One row per settled visit, then totals worked out from the same rows.
 export function salesCsv({visits, db, label, collections}) {
@@ -18,10 +18,10 @@ export function salesCsv({visits, db, label, collections}) {
     const bill = ownerBill(a), amount = bill.amount;
     if (amount !== null) cents += Math.round(amount * 100);
     rows.push([paymentDate(a.paidAt) || 'Not recorded', paymentTime(a.paidAt), a.id, pet.name || a.petId || '', owner.name || '',
-      bill.items.map(i => `${i.qty} x ${i.name}`).join('; '), METHOD[paymentMethod(a.paymentMethod)], a.paymentReference || '', amount === null ? 'Not recorded' : amount.toFixed(2)]);
+      bill.items.map(i => `${i.qty} x ${i.name}`).join('; '), METHOD_LABELS[paymentMethod(a.paymentMethod)], a.paymentReference || '', amount === null ? 'Not recorded' : amount.toFixed(2)]);
   }
   rows.push([], ['Summary', 'Value'], ['Report', label], ['Payments listed', String(visits.length)], ['Total of listed payments', (cents / 100).toFixed(2)]);
-  if (collections) for (const [key, name] of Object.entries(METHOD)) if (collections.methods[key]) rows.push([`${name} (all payments that day)`, collections.methods[key].toFixed(2)]);
-  if (collections && collections.total !== null) rows.push(['All collections that day', money(collections.total).replace('₱', '')]);
+  if (collections) for (const [key, name] of Object.entries(METHOD_LABELS)) if (collections.methods[key]) rows.push([`${name} (all payments in the report)`, collections.methods[key].toFixed(2)]);
+  if (collections && collections.total !== null) rows.push(['All collections in the report', money(collections.total).replace('₱', '')]);
   return '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 }

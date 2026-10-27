@@ -65,6 +65,9 @@ export default function AdminStaff({ onInvite }) {
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [touched, setTouched] = useState({});
+  const fieldErrors = target ? reasonErrors(ACCESS_REASONS[target.action], { reasonCode, reasonNote: reason }) : {};
+  const fieldError = key => touched[key] ? fieldErrors[key] || '' : '';
   const [notice, setNotice] = useState('');
   const busy = useRef(false);
 
@@ -72,6 +75,7 @@ export default function AdminStaff({ onInvite }) {
     setTarget({ ...person, action });
     setReason('');
     setReasonCode('');
+    setTouched({});
     setNewRole(action === 'role' ? Object.keys(STAFF_ROLES).find(r => r !== person.role) : '');
     setSaveError('');
     setNotice('');
@@ -80,8 +84,8 @@ export default function AdminStaff({ onInvite }) {
   const save = async (e) => {
     e.preventDefault();
     if (busy.current) return;
-    const errors = reasonErrors(ACCESS_REASONS[target.action], { reasonCode, reasonNote: reason });
-    if (Object.keys(errors).length) { setSaveError(Object.values(errors)[0]); return; }
+    setTouched({ reasonCode: true, reasonNote: true });
+    if (Object.keys(fieldErrors).length) { const form = e.currentTarget; requestAnimationFrame(() => form.querySelector('[aria-invalid="true"]')?.focus()); return; }
     busy.current = true;
     setSaving(true);
     setSaveError('');
@@ -548,10 +552,11 @@ export default function AdminStaff({ onInvite }) {
                 <label htmlFor="access-reason-code" style={{ fontWeight: 600, fontSize: "calc(12.5px * var(--fs, 1))" }}>
                   Reason<i> *</i>
                 </label>
-                <select id="access-reason-code" required value={reasonCode} onChange={e => setReasonCode(e.target.value)} disabled={saving} style={{ width: "100%" }}>
+                <select id="access-reason-code" required value={reasonCode} aria-invalid={!!fieldError('reasonCode')} aria-describedby="access-reason-code-error" onChange={e => { setReasonCode(e.target.value); setTouched(t => ({ ...t, reasonCode: true })); }} onBlur={() => setTouched(t => ({ ...t, reasonCode: true }))} disabled={saving} style={{ width: "100%" }}>
                   <option value="">Choose a reason…</option>
                   {ACCESS_REASONS[target.action].map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                 </select>
+                <span id="access-reason-code-error" className="err" aria-live="polite">{fieldError('reasonCode')}</span>
               </div>
               <div className="fld" style={{ marginBottom: "16px" }}>
                 <label htmlFor="access-reason" style={{ fontWeight: 600, fontSize: "calc(12.5px * var(--fs, 1))" }}>
@@ -561,16 +566,20 @@ export default function AdminStaff({ onInvite }) {
                   id="access-reason"
                   aria-label="Access change note"
                   required={reasonCode === OTHER}
-                  maxLength={200}
+                  aria-invalid={!!fieldError('reasonNote')}
+                  aria-describedby="access-reason-error"
+                  onBlur={() => setTouched(t => ({ ...t, reasonNote: true }))}
+                  maxLength={220}
                   rows={3}
                   placeholder="Add details for the audit trail (e.g. last working day, ticket number)…"
                   value={reason}
-                  onChange={e => setReason(e.target.value)}
+                  onChange={e => { setReason(e.target.value); setTouched(t => ({ ...t, reasonNote: true })); }}
                   disabled={saving}
                   style={{ width: "100%", fontSize: "calc(13px * var(--fs, 1))" }}
                 />
+                <span id="access-reason-error" className="err" aria-live="polite">{fieldError('reasonNote')}</span>
                 <span style={{ fontSize: "calc(11px * var(--fs, 1))", color: "#64748b", marginTop: "3px", display: "block" }}>
-                  Recorded in the immutable system audit trail for compliance.
+                  {200 - reason.trim().length} characters left · Recorded in the immutable system audit trail for compliance.
                 </span>
               </div>
 
@@ -592,7 +601,7 @@ export default function AdminStaff({ onInvite }) {
                 <button
                   type="submit"
                   className={DANGER_ACTIONS.includes(target.action) ? 'btn danger' : 'btn gold'}
-                  disabled={saving || !reasonCode || (reasonCode === OTHER && !reason.trim()) || (target.action === 'role' && !newRole)}
+                  disabled={saving || (target.action === 'role' && !newRole)}
                 >
                   {saving ? 'Saving...' : target.action === 'role' ? 'Save role change' : `Confirm ${ACTION_LABELS[target.action].toLowerCase()}`}
                 </button>

@@ -6,6 +6,7 @@ import ClinicDialog from '../components/ClinicDialog.jsx';
 import { PaginatedTable } from '../components/Pagination.jsx';
 import { catalogErrors, PRODUCT_CATEGORIES, SERVICE_CATEGORIES } from '../catalogRules.js';
 import { csvCell } from '../salesCsv.js';
+import { CATALOG_REASONS, NOTE_MAX, OTHER, reasonErrors } from '../accessReasons.js';
 
 const peso = n => `₱${Number(n).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 const EMPTY = {name: '', category: '', price: '', unit: 'item / package', description: ''};
@@ -40,7 +41,8 @@ function ItemForm({items, editing, onClose, onSaved}) {
       <p className="sf-sub">{editing ? 'The name and category are fixed so saved invoices keep matching. Price changes apply to new bills; visits already recorded keep the price they were recorded at.' : 'The item appears for reception and veterinarians as soon as it is saved. The name cannot be changed later.'}</p>
       <fieldset disabled={saving} style={{border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 12}}>
         <div className="fld"><label htmlFor="catalog-name">Name <i>*</i></label>
-          <input id="catalog-name" value={form.name} readOnly={!!editing} maxLength={80} onChange={e => set('name', e.target.value)} {...attrs('name')} />{error('name')}</div>
+          <input id="catalog-name" value={form.name} readOnly={!!editing} maxLength={80} onChange={e => set('name', e.target.value)} {...attrs('name')} />{error('name')}
+          {!editing && <small>{80 - form.name.length} characters left</small>}</div>
         <div className="fld"><label htmlFor="catalog-category">Category <i>*</i></label>
           {editing ? <input id="catalog-category" value={form.category} readOnly /> : <select id="catalog-category" value={form.category} onChange={e => set('category', e.target.value)} {...attrs('category')}>
             <option value="">Choose a category</option>
@@ -49,7 +51,8 @@ function ItemForm({items, editing, onClose, onSaved}) {
           </select>}{error('category')}
           {isRx && <small>This category needs a veterinarian’s prescription before it can be sold.</small>}</div>
         <div className="fld"><label htmlFor="catalog-price">Price (₱) <i>*</i></label>
-          <input id="catalog-price" inputMode="decimal" value={form.price} onChange={e => set('price', e.target.value)} {...attrs('price')} />{error('price')}</div>
+          <input id="catalog-price" inputMode="decimal" placeholder="0.00" value={form.price} onChange={e => set('price', e.target.value)} {...attrs('price')} />{error('price')}
+          {editing && !show('price') && form.price.trim() !== String(editing.price) && /^\d+(\.\d{1,2})?$/.test(form.price.trim()) && <small>Was {peso(editing.price)}. New bills use the new price.</small>}</div>
         <div className="fld"><label htmlFor="catalog-unit">Unit <i>*</i></label>
           <input id="catalog-unit" value={form.unit} maxLength={40} onChange={e => set('unit', e.target.value)} {...attrs('unit')} />{error('unit')}</div>
         <div className="fld"><label htmlFor="catalog-description">Description (optional)</label>
@@ -65,10 +68,54 @@ function ItemForm({items, editing, onClose, onSaved}) {
   </ClinicDialog>;
 }
 
+function ArchiveDialog({item, onClose, onDone}) {
+  const archiving = item.active, list = CATALOG_REASONS[archiving ? 'retire' : 'restore'];
+  const [reasonCode, setReasonCode] = useState(''), [reasonNote, setReasonNote] = useState('');
+  const [touched, setTouched] = useState({}), [server, setServer] = useState({}), [top, setTop] = useState(''), [saving, setSaving] = useState(false);
+  const errors = {...reasonErrors(list, {reasonCode, reasonNote}), ...server};
+  const show = key => touched[key] ? errors[key] || '' : '';
+  const submit = async event => {
+    event.preventDefault();
+    if (saving) return;
+    setTouched({reasonCode: true, reasonNote: true});
+    if (Object.keys(errors).length) { requestAnimationFrame(() => event.currentTarget.querySelector('[aria-invalid="true"]')?.focus()); return; }
+    setSaving(true); setTop('');
+    try {
+      const result = await clinicRequest('PUT', `/api/admin/catalog/${item.id}`, {price: String(item.price), unit: item.unit, description: item.description, revision: item.revision, active: !archiving, reasonCode, reasonNote: reasonNote.trim()});
+      onDone(result.item, archiving);
+    } catch (e) { setTop(e.message); setServer(e.fields || {}); setSaving(false); }
+  };
+  return <ClinicDialog label={`${archiving ? 'Delete' : 'Restore'} ${item.name}`} onClose={() => !saving && onClose()}>
+    <form className="modal" style={{width: 'min(500px, 100%)'}} onSubmit={submit} noValidate>
+      <h3>{archiving ? 'Delete' : 'Restore'} {item.name}?</h3>
+      <p>{archiving
+        ? 'This is a soft delete: the item moves to the Archived list and can no longer be sold or prescribed. Visits and invoices that already include it keep it, and you can restore it at any time.'
+        : `It moves back to the active price list and can be sold and prescribed again at ${peso(item.price)}.`}</p>
+      <fieldset disabled={saving} style={{border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 12}}>
+        <div className="fld"><label htmlFor="archive-reason">Reason <i>*</i></label>
+          <select id="archive-reason" value={reasonCode} aria-invalid={!!show('reasonCode')} aria-describedby="archive-reason-error" data-dialog-autofocus
+            onChange={e => { setReasonCode(e.target.value); setServer({}); setTouched(t => ({...t, reasonCode: true})); }} onBlur={() => setTouched(t => ({...t, reasonCode: true}))}>
+            <option value="">Choose a reason</option>{list.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </select><span id="archive-reason-error" className="err" aria-live="polite">{show('reasonCode')}</span></div>
+        <div className="fld"><label htmlFor="archive-note">{reasonCode === OTHER ? <>Explanation <i>*</i></> : 'Note (optional)'}</label>
+          <textarea id="archive-note" rows={2} maxLength={NOTE_MAX + 20} value={reasonNote} aria-invalid={!!show('reasonNote')} aria-describedby="archive-note-error"
+            onChange={e => { setReasonNote(e.target.value); setServer({}); setTouched(t => ({...t, reasonNote: true})); }} onBlur={() => setTouched(t => ({...t, reasonNote: true}))} />
+          <span id="archive-note-error" className="err" aria-live="polite">{show('reasonNote')}</span>
+          <small>{NOTE_MAX - reasonNote.trim().length} characters left · Saved in the audit trail.</small></div>
+      </fieldset>
+      {top && <p className="err" role="alert">{top}</p>}
+      <div className="row end" style={{gap: 10, marginTop: 14}}>
+        <button type="button" className="btn ghost" disabled={saving} onClick={onClose}>Keep as is</button>
+        <button className={`btn ${archiving ? 'danger' : 'gold'}`} disabled={saving}>{saving ? 'Saving…' : archiving ? 'Delete (move to archive)' : 'Restore item'}</button>
+      </div>
+    </form>
+  </ClinicDialog>;
+}
+
 export default function CatalogPage() {
   const [items, setItems] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [q, setQ] = useState(''), [category, setCategory] = useState(''), [status, setStatus] = useState('active'), [kind, setKind] = useState('');
-  const [form, setForm] = useState(null), [confirm, setConfirm] = useState(null), [busy, setBusy] = useState(false);
+  const [form, setForm] = useState(null), [confirm, setConfirm] = useState(null);
   const load = async () => {
     setLoading(true); setError('');
     try { setItems((await clinicRequest('GET', '/api/admin/catalog')).items); }
@@ -85,18 +132,9 @@ export default function CatalogPage() {
   }, [items, q, category, kind, status]);
   const categories = [...new Set(items.map(i => i.category))].sort();
   const active = items.filter(i => i.active);
-  const toggle = async item => {
-    if (busy) return;
-    setBusy(true); setError('');
-    try {
-      const result = await clinicRequest('PUT', `/api/admin/catalog/${item.id}`, {price: String(item.price), unit: item.unit, description: item.description, revision: item.revision, active: !item.active});
-      replace(result.item); setMessage(`${item.name} ${item.active ? 'retired. It can no longer be sold or prescribed.' : 'restored.'}`); setConfirm(null);
-    } catch (e) { setError(e.message); setConfirm(null); }
-    finally { setBusy(false); }
-  };
   const exportCsv = () => {
     const rows = [['Item ID', 'Name', 'Category', 'Type', 'Unit', 'Price (PHP)', 'Status', 'Source', 'Prescription required', 'Last changed by'],
-      ...shown.map(i => [i.id, i.name, i.category, i.kind, i.unit, i.price.toFixed(2), i.active ? 'Active' : 'Retired', i.builtIn ? 'Built-in' : 'Added by admin', i.requiresPrescription ? 'Yes' : 'No', i.updatedBy]),
+      ...shown.map(i => [i.id, i.name, i.category, i.kind, i.unit, i.price.toFixed(2), i.active ? 'Active' : 'Archived', i.builtIn ? 'Built-in' : 'Added by admin', i.requiresPrescription ? 'Yes' : 'No', i.updatedBy]),
       [], ['Summary', 'Value'], ['Items listed', String(shown.length)], ['Average price (PHP)', shown.length ? (shown.reduce((s, i) => s + Math.round(i.price * 100), 0) / shown.length / 100).toFixed(2) : '0.00']];
     const url = URL.createObjectURL(new Blob(['﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n')], {type: 'text/csv;charset=utf-8;'}));
     const link = document.createElement('a'); link.href = url; link.download = 'pawcare-price-list.csv'; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
@@ -104,12 +142,12 @@ export default function CatalogPage() {
   return <div className="staff-catalog">
     <section className="card" style={{marginBottom: 16}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14}}><div style={{flex: '1 1 360px', minWidth: 0}}><h3 style={{margin: 0}}>Services &amp; products price list</h3>
-        <p className="sf-sub">Reception, veterinarians and owners all see these prices. Retired items stay on visits already recorded but cannot be sold or prescribed again.</p></div>
+        <p className="sf-sub">Reception, veterinarians and owners all see these prices. Deleting an item archives it (soft delete): it stays on visits already recorded but cannot be sold or prescribed until restored.</p></div>
         <div className="row" style={{gap: 8, flexWrap: 'nowrap', flex: 'none'}}>
           <button className="btn ghost sm" disabled={!shown.length} onClick={exportCsv}>Export CSV</button>
           <button className="btn gold" onClick={() => { setMessage(''); setForm({}); }}>Add item</button></div></div>
       <dl className="rep-summary" aria-label="Price list summary" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, margin: 0}}>
-        {[['Active items', active.length], ['Retired', items.length - active.length], ['Services', active.filter(i => i.kind === 'service').length], ['Products', active.filter(i => i.kind === 'product').length],
+        {[['Active items', active.length], ['Archived', items.length - active.length], ['Services', active.filter(i => i.kind === 'service').length], ['Products', active.filter(i => i.kind === 'product').length],
           ['Added by admin', items.filter(i => !i.builtIn).length], ['Average price', active.length ? peso(active.reduce((s, i) => s + i.price, 0) / active.length) : '—']].map(([label, value]) =>
           <div key={label} style={{border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', background: '#f8fafc'}}><dt style={{fontSize: "calc(11.5px * var(--fs, 1))", color: '#64748b', fontWeight: 700}}>{label}</dt><dd style={{margin: '2px 0 0', fontSize: "calc(16px * var(--fs, 1))", fontWeight: 800}}>{value}</dd></div>)}
       </dl>
@@ -119,7 +157,7 @@ export default function CatalogPage() {
         <div style={{gridColumn: 'span 2', minWidth: 0}}><SearchField id="catalog-search" label="Search the price list" value={q} onChange={setQ} placeholder="Name or category" result={`${shown.length} item${shown.length === 1 ? '' : 's'} match`} /></div>
         <select aria-label="Filter by category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select>
         <select aria-label="Filter by type" value={kind} onChange={e => setKind(e.target.value)}><option value="">Services and products</option><option value="service">Services</option><option value="product">Products</option></select>
-        <select aria-label="Filter by status" value={status} onChange={e => setStatus(e.target.value)}><option value="active">Active</option><option value="retired">Retired</option><option value="all">All</option></select>
+        <select aria-label="Filter by status" value={status} onChange={e => setStatus(e.target.value)}><option value="active">Active</option><option value="retired">Archived</option><option value="all">All</option></select>
       </div>
       {message && <p role="status" className="ow-note info">{message}</p>}
       {error && <p role="alert" className="err">{error} <button className="btn sm ghost" onClick={load}>Reload price list</button></p>}
@@ -128,20 +166,15 @@ export default function CatalogPage() {
           <td data-label="Item"><b>{i.name}</b>{i.description && <small style={{display: 'block', color: '#64748b'}}>{i.description}</small>}{i.requiresPrescription && <small style={{display: 'block', color: '#92400e'}}>Prescription required</small>}</td>
           <td data-label="Category">{i.category}</td><td data-label="Unit">{i.unit}</td>
           <td data-label="Price" style={{textAlign: 'right', fontWeight: 700}}>{peso(i.price)}</td>
-          <td data-label="Status"><span className={`sf-pill ${i.active ? 'ok' : 'wa'}`}>{i.active ? 'Active' : 'Retired'}</span><small style={{display: 'block', color: '#64748b'}}>{i.builtIn ? 'Built-in' : 'Added by admin'}</small></td>
+          <td data-label="Status"><span className={`sf-pill ${i.active ? 'ok' : 'wa'}`}>{i.active ? 'Active' : 'Archived'}</span><small style={{display: 'block', color: '#64748b'}}>{i.builtIn ? 'Built-in' : 'Added by admin'}</small></td>
           <td data-label="Actions"><div className="row" style={{gap: 6}}>
             <button className="btn sm ghost" onClick={() => { setMessage(''); setForm(i); }} aria-label={`Edit ${i.name}`}>Edit</button>
-            {i.active && i.kind === 'service' ? <button className="btn sm ghost" disabled title="Clinical services cannot be retired. Change the price instead." aria-label={`${i.name} cannot be retired`}>Retire</button>
-              : <button className={`btn sm ${i.active ? 'danger' : 'gold'}`} disabled={busy} onClick={() => setConfirm(i)} aria-label={`${i.active ? 'Retire' : 'Restore'} ${i.name}`}>{i.active ? 'Retire' : 'Restore'}</button>}
+            {i.active && i.kind === 'service' ? <button className="btn sm ghost" disabled title="Clinical services cannot be deleted because visits and vaccine charges rely on them. Change the price instead." aria-label={`${i.name} cannot be deleted`}>Delete</button>
+              : <button className={`btn sm ${i.active ? 'danger' : 'gold'}`} onClick={() => { setMessage(''); setConfirm(i); }} aria-label={`${i.active ? 'Delete' : 'Restore'} ${i.name}`}>{i.active ? 'Delete' : 'Restore'}</button>}
           </div></td></tr>)}
-      </tbody></PaginatedTable></div> : <div className="empty sm">{items.length ? 'No items match these filters.' : 'The price list is empty.'}</div>}
+      </tbody></PaginatedTable></div> : <div className="empty sm">{status === 'retired' && !q.trim() && !category && !kind ? 'No archived items. Deleted items appear here and can be restored.' : items.length ? 'No items match these filters.' : 'The price list is empty.'}</div>}
     </section>
     {form && <ItemForm items={items} editing={form.id ? form : null} onClose={() => setForm(null)} onSaved={(item, how) => { replace(item); setForm(null); setMessage(`${item.name} ${how}.`); }} />}
-    {confirm && <ClinicDialog label={`${confirm.active ? 'Retire' : 'Restore'} ${confirm.name}`} onClose={() => !busy && setConfirm(null)}>
-      <div className="modal" style={{width: 'min(480px, 100%)'}}><h3>{confirm.active ? 'Retire' : 'Restore'} {confirm.name}?</h3>
-        <p>{confirm.active ? 'It will no longer appear for sale or prescribing. Visits that already include it keep it, and you can restore it any time.' : 'It will be available for sale and prescribing again at ' + peso(confirm.price) + '.'}</p>
-        <div className="row end" style={{gap: 10}}><button className="btn ghost" data-dialog-autofocus disabled={busy} onClick={() => setConfirm(null)}>Keep as is</button>
-          <button className={`btn ${confirm.active ? 'danger' : 'gold'}`} disabled={busy} onClick={() => toggle(confirm)}>{busy ? 'Saving…' : confirm.active ? 'Retire item' : 'Restore item'}</button></div></div>
-    </ClinicDialog>}
+    {confirm && <ArchiveDialog item={confirm} onClose={() => setConfirm(null)} onDone={(item, archived) => { replace(item); setConfirm(null); setMessage(archived ? `${item.name} deleted and moved to the archive. Choose "Archived" in the status filter to restore it.` : `${item.name} restored to the price list.`); }} />}
   </div>;
 }

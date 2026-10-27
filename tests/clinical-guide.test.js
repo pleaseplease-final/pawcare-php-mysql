@@ -81,6 +81,6 @@ test('sales export lists settled payments with totals and defuses formulas', () 
   const paid={id:'a1',petId:'p',billingStatus:'Paid',amount:300,paymentMethod:'Cash',paymentReference:'CASH-1',paidAt:'2026-10-26T02:00:00.000Z',invoiceItems:[{name:'Consult, exam',price:300,qty:1}]};
   const db={pets:[{id:'p',name:'=Rex',ownerId:'o'}],owners:[{id:'o',name:'Ana'}]};
   const csv=salesCsv({visits:[paid],db,label:'2026-10-26',collections:dailyCollections([paid],'2026-10-26')});
-  assert.match(csv,/'=Rex/);assert.match(csv,/"1 x Consult, exam"/);assert.match(csv,/Total of listed payments,300\.00/);assert.match(csv,/Cash \(all payments that day\),300\.00/);
+  assert.match(csv,/'=Rex/);assert.match(csv,/"1 x Consult, exam"/);assert.match(csv,/Total of listed payments,300\.00/);assert.match(csv,/Cash \(all payments in the report\),300\.00/);
   assert.equal(csvCell('a,b'),'"a,b"');
 });
