@@ -25,7 +25,8 @@ export function admissionErrors(form,{mode,vet,visits=[]}) {
     nextObservationAt:vet && !discharge && !release && (create || form.nextObservationAt || form.observationInstructions) ? observationTimeError(form.nextObservationAt) : '',
     observationInstructions:vet && !discharge && !release ? text(form.observationInstructions,'Observation instructions',1000,create || !!form.nextObservationAt) : '',
     apptId:create && !visits.some(v=>v.id===form.apptId) ? 'Choose an assigned consultation.' : '',
-    clinicalNote:consent ? '' : text(form.clinicalNote,'Clinic note',3000,true),
+    // At discharge the home-care instructions are the required note; the clinic-only summary is optional.
+    clinicalNote:consent ? '' : text(form.clinicalNote,discharge ? 'Discharge summary' : 'Clinic note',3000,!discharge),
     carePlan:vet && !discharge && !release ? text(form.carePlan,'Care plan',3000,create) : '',
     ownerUpdate:text(form.ownerUpdate,'Owner message',2000,create),
     dischargeInstructions:discharge ? text(form.dischargeInstructions,'Home-care instructions',3000,true) : '',

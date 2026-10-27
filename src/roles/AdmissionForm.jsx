@@ -11,7 +11,7 @@ import './admissions.css';
 export default function AdmissionForm({mode,admission,visits = [],consultationContext,me,onClose,onSaved}) {
   const context = useRef(consultationContext).current;
   const sources = useRef(visits).current, revision = useRef(admission?.revision).current;
-  const [form,setForm] = useState({reasonChoice:'',planTemplate:'',observationTemplate:'',planConfirmed:false,apptId:consultationContext ? visits[0]?.id || '' : '',clinicalNote:consultationContext?.procedure ? 'Pre-procedure preparation' : '',carePlan:'',ownerUpdate:'',temp:'',weight:'',dischargeInstructions:'',nextObservationAt:'',observationInstructions:'',completeObservation:false,consentConfirmed:false,consentName:'',consentMethod:'',emergencyName:'',emergencyPhone:'',emergencyRelationship:''});
+  const [form,setForm] = useState({reasonChoice:'',planTemplate:'',observationTemplate:'',planConfirmed:false,apptId:consultationContext ? visits[0]?.id || '' : '',clinicalNote:'',carePlan:'',ownerUpdate:'',temp:'',weight:'',dischargeInstructions:'',nextObservationAt:'',observationInstructions:'',completeObservation:false,consentConfirmed:false,consentName:'',consentMethod:'',emergencyName:'',emergencyPhone:'',emergencyRelationship:''});
   const [alternateContact,setAlternateContact] = useState(false);
   const [error,setError] = useState(''), [saving,setSaving] = useState(false), [discard,setDiscard] = useState(false);
   const pending = useRef(false), request = useRef(null);
@@ -36,7 +36,7 @@ export default function AdmissionForm({mode,admission,visits = [],consultationCo
     setError('');
     if (!validation.validate(event)) return;
     if (create && !visit) return setError('Choose an assigned visit. Refresh visits if it is missing.');
-    const body = {clinicalNote:consent ? 'Admission consent received.' : form.clinicalNote.trim(),ownerUpdate:form.ownerUpdate.trim(),measurements:{},
+    const body = {clinicalNote:consent ? 'Admission consent received.' : discharge && !form.clinicalNote.trim() ? 'Discharge approved by the veterinarian. Home-care instructions shared with the owner.' : form.clinicalNote.trim(),ownerUpdate:form.ownerUpdate.trim(),measurements:{},
       ...(create ? {reasonChoice:form.reasonChoice,apptId:visit.id,expectedVisit:visit} : {revision}),
       ...(me.role === 'vet' && !discharge && !release ? {carePlan:form.carePlan.trim(),planTemplate:form.planTemplate,observationTemplate:form.observationTemplate,planConfirmed:form.planConfirmed} : {}),
       ...(discharge ? {dischargeInstructions:form.dischargeInstructions.trim()} : {})};
@@ -89,8 +89,8 @@ export default function AdmissionForm({mode,admission,visits = [],consultationCo
             <option value="">Choose a visit</option>{sources.map(row => <option key={row.id} value={row.id}>{row.petName} · {row.ownerName} · {row.date} {row.time} · {row.status}</option>)}
           </select>{validation.feedback('apptId')}</label>}
           {create && <label>Reason for admission *<select required {...validation.field('reasonChoice')} value={form.reasonChoice} onChange={e=>{const value=e.target.value;setForm(previous=>({...previous,reasonChoice:value,clinicalNote:value==='Other'?'':value}));}}><option value="">Choose an admission reason</option>{admissionReasons.map(v=><option key={v}>{v}</option>)}</select>{validation.feedback('reasonChoice')}</label>}
-          {(!create || form.reasonChoice==='Other') && !consent && <label>{create ? 'Other reason for admission (clinic only)' : release ? 'Release confirmation (clinic only)' : discharge ? 'Discharge summary (clinic only)' : 'Observations / care provided (clinic only)'} *
-            <textarea required rows={3} maxLength={3000} {...validation.field('clinicalNote')} value={form.clinicalNote} onChange={event => set('clinicalNote',event.target.value)} />{validation.feedback('clinicalNote')}</label>}
+          {(!create || form.reasonChoice==='Other') && !consent && <label>{create ? 'Other reason for admission (clinic only)' : release ? 'Release confirmation (clinic only)' : discharge ? 'Discharge summary (clinic only, optional)' : 'Observations / care provided (clinic only)'} {discharge ? '' : '*'}
+            <textarea required={!discharge} rows={3} maxLength={3000} {...validation.field('clinicalNote')} value={form.clinicalNote} onChange={event => set('clinicalNote',event.target.value)} />{validation.feedback('clinicalNote')}</label>}
           {me.role==='vet' && !discharge && !release && <label>Care plan template<select {...validation.field('planTemplate')} value={form.planTemplate} onChange={e=>template('planTemplate',e.target.value,'carePlan',carePlanTemplates)}><option value="">Choose a starting template (optional)</option>{Object.keys(carePlanTemplates).map(v=><option key={v}>{v}</option>)}<option value="Custom">Custom plan</option></select>{validation.feedback('planTemplate')}</label>}
           {me.role === 'vet' && !discharge && !release && <label>{create ? 'Care plan and monitoring instructions *' : 'Updated care plan (optional; leave blank to keep the current plan)'}
             <textarea required={create} rows={3} maxLength={3000} {...validation.field('carePlan')} value={form.carePlan} onChange={event => set('carePlan',event.target.value)} />{validation.feedback('carePlan')}</label>}

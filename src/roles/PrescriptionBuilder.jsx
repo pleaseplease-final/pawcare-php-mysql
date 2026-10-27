@@ -83,9 +83,10 @@ export default function PrescriptionBuilder({items, onChange, notes, onNotes, er
         <div className="row end"><b>Product total: ₱{(Number(p.quantity || 0) * p.price).toLocaleString()}</b><button className="btn sm ghost" type="button" aria-label={`Remove ${p.name}`} onClick={() => onChange(items.filter(x => x.catalogId !== id))}>Remove</button></div>
       </fieldset>;
     })}
-    <label>External prescriptions / additional home-care instructions<textarea name="prescription" aria-invalid={!!error || notes.length > 3000} aria-describedby="rx-notes-error" rows={3} maxLength={3000} value={notes} onChange={e => onNotes(e.target.value)} /></label>
-    <p>External prescriptions are recorded for the owner; only selected catalog products are added to clinic billing. {notes.length > 2500 && <b>{3000 - notes.length} characters left.</b>}</p>
-    {!!items.length && <div className="rx-preview"><b>Prescription preview</b><p style={{whiteSpace: 'pre-wrap'}}>{prescriptionText(preview, notes)}</p></div>}
+    <label htmlFor="rx-notes">External prescriptions / additional home-care instructions</label>
+    <textarea id="rx-notes" name="prescription" placeholder="e.g. Amoxicillin 250 mg — buy at any pharmacy; give 1 capsule twice daily for 7 days" aria-invalid={!!error || (notes || '').length > 3000} aria-describedby="rx-notes-error" rows={3} maxLength={3000} value={notes || ''} onChange={e => onNotes(e.target.value)} />
     {error && <p id="rx-notes-error" className="err" role="alert">{error}</p>}
+    <p>External prescriptions are recorded for the owner; only selected catalog products are added to clinic billing. <span>{3000 - (notes || '').length} characters left.</span></p>
+    {(!!items.length || !!(notes || '').trim()) && <div className="rx-preview"><b>Prescription preview</b><p style={{whiteSpace: 'pre-wrap'}}>{prescriptionText(preview, notes || '')}</p></div>}
   </section>;
 }
