@@ -18,7 +18,7 @@ import { paymentDate, paymentMethod, paymentTime, money } from "../assistantWork
 import { PERIODS, DIGITAL_METHODS, periodRange, periodLabel, stepPeriod, rangeCollections, rangePendingCheckout } from "../salesPeriods.js";
 import { ownerBill } from "../ownerBilling.js";
 import { salesCsv, METHOD_LABELS } from "../salesCsv.js";
-import { api } from "../api.js";
+import { OfficialLetterhead, DocumentSignoff } from "../components/OfficialDocument.jsx";
 import BillingModal from "./BillingModal.jsx";
 import "./sales-report.css";
 
@@ -54,16 +54,6 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
   const [methodFilter, setMethodFilter] = useState("all");
   const [view, setView] = useState("payments");
   const [receiptAppt, setReceiptAppt] = useState(null);
-  const [clinic, setClinic] = useState(null);
-
-  // Verified clinic details for the printed letterhead; administrators only, with a plain fallback.
-  useEffect(() => {
-    if (me.role !== "admin") return;
-    let live = true;
-    api.get("/api/clinic-document-profile").then(r => { if (live) setClinic(r?.profile?.details || null); }).catch(() => {});
-    return () => { live = false; };
-  }, [me.role]);
-
   const { from, to } = periodRange(period, selDate);
   const rangeText = periodLabel(period, selDate);
   const reportTitle = `${PERIOD_NAME[period]} sales report`;
@@ -288,7 +278,7 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
                   {filteredPaid.map(a => {
                     const { pet, owner } = people(a), isCash = paymentMethod(a.paymentMethod) === "cash";
                     return (
-                      <tr key={a.id} onClick={() => setReceiptAppt(a)} className="sales-row" title="Click to view the paid invoice and print it">
+                      <tr key={a.id} onClick={() => setReceiptAppt(a)} className="sales-row" title="Click to view the official receipt and print it">
                         <td data-label="Payment time • Visit reference" style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                           <b style={{ color: "var(--navy)" }}>{multiDay && paymentDate(a.paidAt) ? `${paymentDate(a.paidAt)} · ` : ""}{paymentTime(a.paidAt)}</b>
                           <small style={{ display: "block", color: "#64748b", fontFamily: "monospace", fontSize: "calc(11px * var(--fs, 1))" }}>{a.id}</small>
@@ -311,7 +301,7 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
                         </td>
                         <td data-label="Action" style={{ padding: "12px 16px", textAlign: "right" }}>
                           <button type="button" className="btn sm ghost" onClick={e => { e.stopPropagation(); setReceiptAppt(a); }} style={{ padding: "4px 8px", fontSize: "calc(11.5px * var(--fs, 1))", fontWeight: 600, color: "var(--navy)", border: "1px solid #cbd5e1" }}>
-                            View Invoice
+                            View receipt
                           </button>
                         </td>
                       </tr>
@@ -336,7 +326,7 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
       </div>
 
       {/* The printed report: an official document, not a copy of the screen. Hidden while an invoice is open so that prints instead. */}
-      {!receiptAppt && <SalesReportDocument {...{ db, me, clinic, period, reportTitle, rangeText, from, to, collections, pending, payments: filteredPaid, methodFilter, search: search.trim(), showUndated, people }} />}
+      {!receiptAppt && <SalesReportDocument {...{ db, me, period, reportTitle, rangeText, from, to, collections, pending, payments: filteredPaid, methodFilter, search: search.trim(), showUndated, people }} />}
 
       {receiptAppt && (
         <BillingModal
@@ -358,7 +348,7 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
 const METHOD_ROWS = ["cash", "gcash", "maya", "card", "other", "unrecorded"];
 const FILTER_LABEL = { all: "All payment methods", digital: "Digital (GCash / Card / Maya)", ...METHOD_LABELS };
 
-function SalesReportDocument({ me, clinic, period, reportTitle, rangeText, from, to, collections, pending, payments, methodFilter, search, showUndated, people }) {
+function SalesReportDocument({ me, period, reportTitle, rangeText, from, to, collections, pending, payments, methodFilter, search, showUndated, people }) {
   const generated = new Date();
   const generatedText = generated.toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "long", timeStyle: "short" });
   const reportNo = `SR-${period[0].toUpperCase()}-${from.replace(/-/g, "")}${from !== to ? `-${to.replace(/-/g, "")}` : ""}`;
@@ -367,21 +357,7 @@ function SalesReportDocument({ me, clinic, period, reportTitle, rangeText, from,
   const multiDay = from !== to;
   return (
     <article className="print-document sales-report-doc" aria-hidden="true">
-      <header className="srd-letterhead">
-        <div>
-          <strong className="srd-clinic">{clinic?.name || "PawCare Veterinary Clinic"}</strong>
-          {clinic?.address && <span>{clinic.address}</span>}
-          {(clinic?.phone || clinic?.email) && <span>{[clinic.phone && `Tel. ${clinic.phone}`, clinic.email].filter(Boolean).join(" · ")}</span>}
-          {clinic?.registration && <span>Registration / License: {clinic.registration}</span>}
-        </div>
-        <dl className="srd-meta">
-          <div><dt>Report no.</dt><dd>{reportNo}</dd></div>
-          <div><dt>Generated</dt><dd>{generatedText}</dd></div>
-        </dl>
-      </header>
-
-      <h1 className="srd-title">{reportTitle.toUpperCase()}</h1>
-      <p className="srd-subtitle">Statement of collections · Amounts in Philippine Peso (PHP)</p>
+      <OfficialLetterhead title={reportTitle} subtitle="Statement of collections · Amounts in Philippine Peso (PHP)" meta={[["Report no.", reportNo], ["Generated", generatedText]]} />
 
       <table className="srd-info">
         <tbody>
@@ -432,13 +408,8 @@ function SalesReportDocument({ me, clinic, period, reportTitle, rangeText, from,
         <tfoot><tr><th colSpan={7}>Total of {payments.length} listed payment{payments.length === 1 ? "" : "s"}</th><th className="num">{(listedCents / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</th></tr></tfoot>
       </table>
 
-      <p className="srd-certify">I hereby certify that the above is a true and correct statement of collections recorded in the PawCare clinic system for the period stated.</p>
-      <div className="srd-signatures">
-        {[["Prepared by", me.name], ["Reviewed by", ""], ["Approved by", ""]].map(([role, name]) => (
-          <div key={role}><span className="srd-sign-role">{role}:</span><span className="srd-sign-line">{name}</span><span className="srd-sign-caption">Signature over printed name · Date</span></div>
-        ))}
-      </div>
-      <footer className="srd-footer">System-generated report · {reportNo} · Printed {generatedText} · This document is for internal clinic records.</footer>
+      <DocumentSignoff statement="I hereby certify that the above is a true and correct statement of collections recorded in the clinic system for the period stated."
+        signers={[["Prepared by", me.name], ["Reviewed by", ""], ["Approved by", ""]]} reference={`${reportNo} · For internal clinic records`} />
     </article>
   );
 }

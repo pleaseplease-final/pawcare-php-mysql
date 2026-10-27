@@ -228,6 +228,7 @@ clinicRouter.get(["/state","/state/summary","/state/history"], async (req, res) 
       discount: a.payment_details?.discount || 0,
       cashTendered: a.payment_details?.cashTendered ?? null,
       changeAmount: a.payment_details?.changeAmount || 0,
+      receivedBy: a.payment_details?.receivedBy || "",
       paidAt: a.paid_at || null,
       admissionStatus: admissionByVisit.get(a.id) || null,
       invoiceItems: a.invoice_items || [],
@@ -1487,7 +1488,7 @@ clinicRouter.post("/appointments/:id/billing", async (req, res) => {
     await ensurePrescriptionSchema();
     await ensureCareSchema();
     await ensureAdmissionsSchema();
-    const paymentDetails = { discount, reference: req.body.paymentReference || "", cashTendered: paymentMethod === "Cash" ? req.body.cashTendered : total, changeAmount: paymentMethod === "Cash" ? Math.round((req.body.cashTendered - total) * 100) / 100 : 0 };
+    const paymentDetails = { discount, reference: req.body.paymentReference || "", cashTendered: paymentMethod === "Cash" ? req.body.cashTendered : total, changeAmount: paymentMethod === "Cash" ? Math.round((req.body.cashTendered - total) * 100) / 100 : 0, receivedBy: req.user.name || "" };
     const result = await withTransaction(async client => {
       const current = (await client.query("SELECT * FROM appointments WHERE id = $1 FOR UPDATE", [apptId])).rows[0];
       if (!current) throw Object.assign(new Error("Appointment not found."), { status: 404 });
@@ -1537,6 +1538,7 @@ clinicRouter.post("/appointments/:id/billing", async (req, res) => {
         discount,
         cashTendered: paymentDetails.cashTendered,
         changeAmount: paymentDetails.changeAmount,
+        receivedBy: paymentDetails.receivedBy,
         paidAt: row.paid_at,
         invoiceItems: row.invoice_items
       }

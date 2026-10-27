@@ -6,6 +6,7 @@ import { PaginatedTable } from "../components/Pagination.jsx";
 import { categoryOf, categoryOptions, summarize, CATEGORY_LABEL } from "../reportSummary.js";
 import { useState, useMemo } from "react";
 import { E, scope, Badge } from "../lib.jsx";
+import { OfficialLetterhead, DocumentSignoff, manilaDateTime } from "../components/OfficialDocument.jsx";
 import {
   FileText,
   Download,
@@ -22,11 +23,6 @@ import {
   Sparkles,
   ChevronDown
 } from "lucide-react";
-
-const CLINIC = {
-  name: "PawCare Veterinary Clinic",
-  subtitle: "Animal Health Care & Digital Immunization Services"
-};
 
 const REPORT_CONFIG = {
   appts: {
@@ -245,6 +241,7 @@ export default function ReportsPage({ db, me }) {
     if (canExport) window.print();
   };
 
+  const reportNo = `RPT-${String(reportType).slice(0, 4).toUpperCase()}-${new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }).replace(/-/g, "")}`;
   const IconCmp = currentCfg.icon;
 
   return (
@@ -419,22 +416,15 @@ export default function ReportsPage({ db, me }) {
       {/* Main Report Document Sheet */}
       <section className="card rep-sheet">
         
-        {/* Official letterhead */}
-        <header className="rep-print-header rep-letterhead">
-          <PawPrint size={26} aria-hidden="true" />
-          <h1>{CLINIC.name}</h1>
-          <p className="rep-tagline">{CLINIC.subtitle}</p>
-          <h2 className="rep-doc-title">{currentCfg.title}</h2>
-          <p className="rep-doc-sub">{currentCfg.sub}</p>
-          <dl className="rep-meta">
-            <div><dt>Report type</dt><dd>Saved records report</dd></div>
-            <div><dt>Date generated</dt><dd>{new Date().toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</dd></div>
-            <div><dt>Prepared by</dt><dd>{me.name} ({String(me.role).toUpperCase()})</dd></div>
-            <div><dt>Records shown</dt><dd>{filteredList.length}</dd></div>
-            {isDateFiltered && (from || to) && <div><dt>Date range</dt><dd>{from || "Beginning"} to {to || "Present"}</dd></div>}
-            {category && <div><dt>{CATEGORY_LABEL[reportType]}</dt><dd>{category}</dd></div>}
-          </dl>
-        </header>
+        {/* Official letterhead (printed) */}
+        <OfficialLetterhead title={currentCfg.title} subtitle={currentCfg.sub} meta={[["Report no.", reportNo], ["Generated", manilaDateTime()]]} />
+        <table className="official-only rep-info">
+          <tbody>
+            <tr><th>Report type</th><td>Saved records report</td><th>Prepared by</th><td>{me.name} ({String(me.role).toUpperCase()})</td></tr>
+            <tr><th>Records shown</th><td>{filteredList.length}</td><th>Date range</th><td>{isDateFiltered && (from || to) ? `${from || "Beginning"} to ${to || "Present"}` : "All saved records"}</td></tr>
+            {(category || search.trim()) && <tr><th>Filters</th><td colSpan={3}>{[category && `${CATEGORY_LABEL[reportType]}: ${category}`, search.trim() && `Search: “${search.trim()}”`].filter(Boolean).join(" · ")}</td></tr>}
+          </tbody>
+        </table>
 
         {/* Summary calculated from the filtered records; also prints with the report */}
         <h3 className="rep-section">Summary</h3>
@@ -487,14 +477,9 @@ export default function ReportsPage({ db, me }) {
           </div>
         )}
 
-        {/* Sign-off block */}
-        <footer className="rep-print-footer rep-signoff">
-          <p>This report is a summary exported directly from the PawCare Clinic Portal and reflects the saved records at the time it was generated.</p>
-          <div className="rep-sign">
-            <div><span className="rep-line" /><b>{me.name}</b><small>Prepared by</small></div>
-            <div><span className="rep-line" /><b>&nbsp;</b><small>Reviewed by</small></div>
-          </div>
-        </footer>
+        {/* Sign-off block (printed) */}
+        <DocumentSignoff statement="I certify that this report was generated from the clinic's saved records and reflects them as of the time printed."
+          signers={[["Prepared by", me.name], ["Reviewed by", ""], ["Approved by", ""]]} reference={reportNo} />
 
       </section>
     </>

@@ -2,6 +2,7 @@ import {visitFormType,visitFormTitle} from '../visitForm.js';
 import { SearchField } from "./owner/ui.jsx";
 import ClinicDialog from "../components/ClinicDialog.jsx";
 import DocumentHeader from "../components/DocumentHeader.jsx";
+import { DocumentSignoff } from "../components/OfficialDocument.jsx";
 import { PaginatedTable } from "../components/Pagination.jsx";
 import {HistoryControls,useHistoryComplete} from "../ClinicHistory.jsx";
 import { useState } from "react";
@@ -55,7 +56,7 @@ export function ConsultationDetailModal({ record, db, setDb, me, onClose, onEdit
   return (
     <ClinicDialog label="Clinical consultation record" onClose={onClose} style={{padding:16}}>
       <div className="modal clinical-record-dialog print-document" style={{ width: "min(780px, 100%)", maxHeight: "94vh", overflowY: "auto", padding: "26px 30px" }}>
-        <DocumentHeader title={title} />
+        <DocumentHeader title={title} meta={[["Case no.", `REC-${record.id.slice(-6).toUpperCase()}`], ["Date of visit", record.date], ["Patient ref.", pet.vaccinationCardId]]}>Medical record · Confidential</DocumentHeader>
         <HistoryControls auto />
         
         {/* Top Header Toolbar */}
@@ -272,8 +273,12 @@ export function ConsultationDetailModal({ record, db, setDb, me, onClose, onEdit
 
         </div>
 
+        <DocumentSignoff statement="This is a true copy of the clinical record kept by the clinic for the visit stated above."
+          signers={[["Attending veterinarian", vetName === "Veterinarian not recorded" ? "" : vetName, "Signature over printed name · License no."]]}
+          reference={`Case REC-${record.id.slice(-6).toUpperCase()}`} />
+
         {/* Footer Actions */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "space-between", alignItems: "center", marginTop: "22px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
+        <div className="no-print" style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "space-between", alignItems: "center", marginTop: "22px", paddingTop: "14px", borderTop: "1px solid #e2e8f0" }}>
           <div style={{ fontSize: "calc(12px * var(--fs, 1))", color: "#64748b" }}>
             Recorded veterinarian: <b>{vetName}</b>
           </div>

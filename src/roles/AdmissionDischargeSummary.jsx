@@ -1,5 +1,6 @@
 import ClinicDialog from '../components/ClinicDialog.jsx';
 import DocumentHeader from '../components/DocumentHeader.jsx';
+import { DocumentSignoff, documentNumber } from '../components/OfficialDocument.jsx';
 import { OwnerBillDetails } from './owner/Bills.jsx';
 import { useClinicRead } from '../useClinicRead.js';
 import '../print-documents.css';
@@ -8,7 +9,7 @@ const time = value => value ? new Date(value).toLocaleString('en-PH',{timeZone:'
 export function DischargeDocument({data}) {
   const {admission:a,consultation:c} = data;
   return <article className="print-document discharge-document">
-    <DocumentHeader title="Pet discharge summary">Admission reference: {a.id}</DocumentHeader>
+    <DocumentHeader title="Pet discharge summary" meta={[['Document no.', documentNumber('DS', a.id)], ['Admission ref.', a.id], ['Retrieved', time(data.generatedAt)]]}>Confidential patient record</DocumentHeader>
     <h2>Discharge summary · {a.petName}</h2>
     <p>Owner: {data.ownerName} · Veterinarian: {a.vetName}</p>
     <p><b>{a.status}</b>{a.status==='Ready for discharge' && ' · Release to owner has not yet been confirmed.'}</p>
@@ -21,6 +22,9 @@ export function DischargeDocument({data}) {
     <h3>Discharge and home-care instructions</h3><p>{a.dischargeInstructions || 'Not recorded'}</p>
     <OwnerBillDetails appointment={data.appointment} />
     <p>Document retrieved: {time(data.generatedAt)} · All times in Manila (UTC+08:00).</p>
+    <DocumentSignoff statement="I acknowledge receipt of my pet and of the discharge and home-care instructions above, which were explained to me."
+      signers={[['Attending veterinarian', a.vetName, 'Signature over printed name · License no.'], ['Released by', '', 'Clinic staff · Signature over printed name'], ['Received by (owner)', data.ownerName, 'Signature over printed name · Date']]}
+      reference={documentNumber('DS', a.id)} />
   </article>;
 }
 export default function AdmissionDischargeSummary({id,onClose}) {

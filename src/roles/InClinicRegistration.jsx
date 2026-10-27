@@ -2,6 +2,7 @@ import ClinicDialog from '../components/ClinicDialog.jsx';
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
 import {matchingOwners} from '../ownerMatching.js';
 import DocumentHeader from "../components/DocumentHeader.jsx";
+import { DocumentSignoff, documentNumber, manilaDateTime } from "../components/OfficialDocument.jsx";
 import { VaccinePicker, useBookingCatalog } from '../components/VaccineBooking.jsx';
 import { vaccineChoiceError, vaccineReason, vaccinePriceLabel, VACCINE_CHOICES } from '../vaccineBooking.js';
 import { useSubmissionReview } from "../components/SubmissionReview.jsx";
@@ -231,7 +232,8 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
       {unsaved.card}
       <div className={`modal ${successData?"print-document":""}`} style={{ width: "min(680px, 100%)", maxHeight: "94vh", overflowY: "auto", padding: "24px 28px" }}>
         
-        {successData&&<DocumentHeader title="Client and patient registration slip"/>}
+        {successData&&<DocumentHeader title="Client and patient registration slip" meta={[["Slip no.", documentNumber("REG", successData.pet.id)], ["Patient ref.", successData.pet.vaccinationCardId]]}/>}
+        {successData&&<RegistrationSlip data={successData} me={me} />}
         {/* Modal Title */}
         <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap:8, marginBottom: "16px", borderBottom: "1px solid #f1f5f9", paddingBottom: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth:0 }}>
@@ -249,7 +251,7 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
         </div>
 
         {successData ? (
-          <div style={{ textAlign: "center", padding: "12px 0" }}>
+          <div className="no-print" style={{ textAlign: "center", padding: "12px 0" }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#dcfce7", color: "#166534", display: "grid", placeItems: "center", margin: "0 auto 12px" }}>
               <CheckCircle2 size={34} />
             </div>
@@ -760,5 +762,34 @@ export default function InClinicRegistration({ db, setDb, me, onClose, onRegiste
 
       </div>
     </ClinicDialog>
+  );
+}
+
+// Printed only: the formal registration slip handed to the client for signature.
+function RegistrationSlip({ data, me }) {
+  const { owner, pet, appt } = data;
+  const rows = [
+    ["Owner", [
+      ["Full name", owner.name], ["Mobile number", owner.phone], ["Email", owner.email], ["Address", owner.address],
+    ]],
+    ["Patient", [
+      ["Name", pet.name], ["Species", pet.species], ["Breed", pet.breed], ["Sex", pet.sex], ["Date of birth", pet.birth || pet.birthday],
+      ["Colour / markings", pet.color], ["Internal treatment reference", pet.vaccinationCardId ? `#${pet.vaccinationCardId}` : ""],
+    ]],
+  ];
+  return (
+    <section className="reg-slip official-only">
+      <p className="reg-slip-intro">Registered on {manilaDateTime()}{appt ? ` · Arrival saved for ${appt.date}${appt.time ? ` at ${appt.time}` : ""}${appt.reason ? ` (${appt.reason})` : ""}` : ""}.</p>
+      {rows.map(([heading, fields]) => (
+        <table key={heading} className="reg-slip-table">
+          <thead><tr><th colSpan={2}>{heading} information</th></tr></thead>
+          <tbody>{fields.map(([label, value]) => <tr key={label}><th scope="row">{label}</th><td>{value || "Not recorded"}</td></tr>)}</tbody>
+        </table>
+      ))}
+      <DocumentSignoff
+        statement="I confirm that the information above is correct and I consent to the clinic keeping these records for my pet's care."
+        signers={[["Client / owner", owner.name], ["Registered by", me?.name, "Front desk · Signature over printed name"]]}
+        reference={documentNumber("REG", pet.id)} />
+    </section>
   );
 }

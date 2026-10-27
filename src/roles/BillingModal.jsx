@@ -161,7 +161,7 @@ export default function BillingModal({ appt, db, setDb, me, onClose, onPaid }) {
     setDb(p => ({
       ...p,
       appts: p.appts.map(a => a.id === appt.id ? { ...a, ...payment } : a),
-      log: addLog(p, me, `Processed billing payment ${money(payment.amount)} via ${payment.paymentMethod} (Ref: ${payment.paymentReference}) for ${pet.name} (${owner.name}). Marked the invoice as paid.`)
+      log: addLog(p, me, `Processed billing payment ${money(payment.amount)} via ${payment.paymentMethod} (Ref: ${payment.paymentReference}) for ${pet.name} (${owner.name}). Issued the official receipt.`)
     }));
 
     setPaymentRecord(payment);
@@ -172,7 +172,7 @@ export default function BillingModal({ appt, db, setDb, me, onClose, onPaid }) {
   };
 
   return (
-    <ClinicDialog label={paid ? "Paid invoice" : "Visit checkout"} onClose={unsaved.close}>
+    <ClinicDialog label={paid ? "Official receipt" : "Visit checkout"} onClose={unsaved.close}>
       {unsaved.card}
       <div className={`modal ${paid?"print-document invoice-modal":""}`} aria-labelledby="billing-title" style={{ width: "min(620px, 100%)", maxHeight: "92vh", overflowY: "auto", padding: "22px 26px" }}>
         
@@ -185,7 +185,7 @@ export default function BillingModal({ appt, db, setDb, me, onClose, onPaid }) {
         <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid #f1f5f9", paddingBottom: "12px" }}>
           <div>
             <h3 id="billing-title" style={{ margin: 0, color: "var(--navy)", fontSize: "1.25rem", display: "flex", alignItems: "center", gap: "8px" }}>
-              <Receipt size={22} color="#0284c7" /> {paid ? "Paid invoice" : "Front Desk Checkout & Billing"}
+              <Receipt size={22} color="#0284c7" /> {paid ? "Official receipt" : "Front Desk Checkout & Billing"}
             </h3>
             <span style={{ fontSize: "calc(12px * var(--fs, 1))", color: "#64748b" }}>
               {paid ? "Final record of this visit’s charges and payment" : "Saved visit charges and optional shampoo or accessories"}
@@ -198,12 +198,12 @@ export default function BillingModal({ appt, db, setDb, me, onClose, onPaid }) {
           <div className="inv-wrap">
             <div className="inv-banner no-print">
               <CheckCircle2 size={22} aria-hidden="true" />
-              <div><b>Payment recorded</b><span>{money(savedBill.amount)} paid by {paymentRecord.paymentMethod?.trim() || "unrecorded method"}. The invoice below is now final.</span></div>
+              <div><b>Payment recorded</b><span>{money(savedBill.amount)} paid by {paymentRecord.paymentMethod?.trim() || "unrecorded method"}. The official receipt below is now final.</span></div>
             </div>
             <InvoiceDocument appt={appt} payment={paymentRecord} bill={savedBill} pet={pet} owner={owner} />
             <div className="inv-actions no-print">
               <button className="btn ghost sm" onClick={() => window.print()} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <Printer size={15} aria-hidden="true" /> Print invoice
+                <Printer size={15} aria-hidden="true" /> Print official receipt
               </button>
               <button className="btn gold sm" onClick={unsaved.close}>Done</button>
             </div>

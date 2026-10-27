@@ -5,7 +5,7 @@ import {clinicDocumentErrors,clinicDocumentFields} from '../../src/clinicDocumen
 import {vetCardPdf} from '../vetCardPdf.js';
 export const digitalVetCardRouter=express.Router();
 digitalVetCardRouter.use(async(req,res,next)=>{
- if(req.path!=='/clinic-document-profile' && !/^\/pets\/[^/]+\/vet-card(?:\/pdf)?$/.test(req.path))return next();
+ if(!['/clinic-document-profile','/clinic-letterhead'].includes(req.path) && !/^\/pets\/[^/]+\/vet-card(?:\/pdf)?$/.test(req.path))return next();
  res.set('Cache-Control','private, no-store');
  try{await ensureDigitalVetCardSchema();next();}catch{res.status(500).json({error:'Unable to prepare Digital Vet Cards. Please retry.'});}
 });
@@ -15,6 +15,12 @@ async function consistentCardRead(work){
 const failure=(res,e)=>res.status(e.status || 500).json({error:e.status?e.message:'Unable to load or publish the Digital Vet Card. Please retry.'});
 digitalVetCardRouter.get('/clinic-document-profile',async(req,res)=>{
  try{const row=(await query('SELECT * FROM clinic_document_profile WHERE id=true')).rows[0];res.json({success:true,profile:row});}catch(e){failure(res,e);}
+});
+// Letterhead for printed documents (receipts, records, reports). Contact details only, for any signed-in user.
+digitalVetCardRouter.get('/clinic-letterhead',async(req,res)=>{
+ try{const details=(await query('SELECT details FROM clinic_document_profile WHERE id=true')).rows[0]?.details||{};
+  res.json({success:true,letterhead:Object.fromEntries(['name','address','phone','email','registration'].map(key=>[key,typeof details[key]==='string'?details[key]:'']))});
+ }catch(e){failure(res,e);}
 });
 digitalVetCardRouter.put('/clinic-document-profile',async(req,res)=>{
  try{
