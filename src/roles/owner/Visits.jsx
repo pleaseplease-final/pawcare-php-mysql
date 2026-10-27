@@ -4,9 +4,11 @@ import { today } from "../../booking.js";
 import { ownerFollowUp, ownerFollowUpBooking } from "../../ownerCare.js";
 import { useState } from "react";
 import { scope, petName } from "../../lib.jsx";
-import { useLive, Icon, Modal, setPrefill, pick, fmt12 } from "./ui.jsx";
+import { useLive, Icon, Modal, Field, SearchField, setPrefill, pick, fmt12 } from "./ui.jsx";
 import { VISIT_TYPES, recordKind, recordDoses, recordHeadline } from "../../ownerVisitType.js";
 
+const OLDEST = "2000-01-01";
+const validDay = d => { if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false; const t = new Date(`${d}T00:00:00Z`); return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d; };
 const fmtDate = d => d ? new Date(d + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—";
 
 
@@ -16,7 +18,17 @@ export function OwnerVisits({ db, me, go }) {
   const vetName = id => (db.vets || []).find(v => v.id === id)?.name || "Veterinarian details unavailable";
   const [pet, setPet] = useState(""), [q, setQ] = useState(""), [openId, setOpenId] = useState(null), [care, setCare] = useState(""), [type, setType] = useState("");
   const pets = scope(db, me, "pets");
-  const f = useLive({ from: "", to: "" }, v => { const e = {}; if (v.from && v.to && v.from > v.to) e.to = "“To” must be on or after “From”"; return e; });
+  const f = useLive({ from: "", to: "" }, v => {
+    const e = {};
+    for (const k of ["from", "to"]) {
+      if (!v[k]) continue;
+      if (!validDay(v[k])) e[k] = "Enter a real date.";
+      else if (v[k] > TODAY) e[k] = "Visits can’t be dated in the future.";
+      else if (v[k] < OLDEST) e[k] = "Choose a date from the year 2000 onward.";
+    }
+    if (v.from && v.to && !e.from && !e.to && v.from > v.to) e.to = "“To” must be on or after “From”.";
+    return e;
+  });
   const all = scope(db, me, "records").slice().sort((a, b) => b.date.localeCompare(a.date));
   const appointments = scope(db, me, "appts"), vaccinations = scope(db, me, "vacc");
   const kindOf = r => recordKind(r, appointments);
@@ -27,7 +39,7 @@ export function OwnerVisits({ db, me, go }) {
   const book = r => { setPrefill(ownerFollowUpBooking(r)); go("appts"); };
   let list = all;
   if (pet) list = list.filter(r => r.petId === pet);
-  if (!f.errs.to) list = list.filter(r => (!f.v.from || r.date >= f.v.from) && (!f.v.to || r.date <= f.v.to));
+  if (!f.errs.to && !f.errs.from) list = list.filter(r => (!f.v.from || r.date >= f.v.from) && (!f.v.to || r.date <= f.v.to));
   if (care) list = list.filter(r => ownerFollowUp(r, appointments)?.status === care);
   if (type) list = list.filter(r => kindOf(r) === type);
   if (q.trim()) list = list.filter(r => [petName(db, r.petId), vetName(r.vetId), r.diagnosis, r.treatment, r.prescription, r.careStatus, r.followUpReason, ...(r.prescriptionItems || []).map(p => `${p.name} ${p.instructions}`)].join(" ").toLowerCase().includes(q.trim().toLowerCase()));
@@ -39,13 +51,12 @@ export function OwnerVisits({ db, me, go }) {
     <div className="portal-metrics" aria-label="Visit history summary"><div><b>{all.length}</b><span>Saved visit records</span></div><div><b>{all.filter(r => ownerFollowUp(r, appointments)?.status === "Needs booking").length}</b><span>Follow-ups to book</span></div><div><b>{all.filter(r => ownerFollowUp(r, appointments)?.status === "Booked").length}</b><span>Follow-ups booked</span></div></div>
     <div className="vh-filters" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
       <div className="vh-f vh-search" style={{ ...cell, flex: "2 1 260px" }}>
-        <label htmlFor="vh-q">Search visits</label>
-        <div className="vh-sbox"><Icon n="search" size={16} /><input id="vh-q" className="vh-in" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Pet, vet or diagnosis" /></div>
+        <SearchField id="vh-q" label="Search visits" value={q} onChange={setQ} placeholder="Pet, vet or diagnosis" result={`${list.length} visit${list.length === 1 ? "" : "s"} match`} />
       </div>
       <div className="vh-f" style={cell}><label htmlFor="vh-pet">Pet</label><select id="vh-pet" className="vh-in" value={pet} onChange={e => setPet(e.target.value)}><option value="">All my pets</option>{pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
       <div className="vh-f" style={cell}><label htmlFor="vh-type">Visit type</label><select id="vh-type" className="vh-in" value={type} onChange={e => setType(e.target.value)}><option value="">All visit types</option>{Object.entries(VISIT_TYPES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
-      <div className="vh-f" style={cell}><label htmlFor="vfrom">From date</label><input id="vfrom" className="vh-in" type="date" max={TODAY} value={f.v.from} onChange={e => f.set("from", e.target.value)} /></div>
-      <div className="vh-f" style={cell}><label htmlFor="vto">To date</label><input id="vto" className="vh-in" type="date" max={TODAY} value={f.v.to} onChange={e => f.set("to", e.target.value)} aria-invalid={!!f.errs.to} />{f.errs.to && <span className="err">{f.errs.to}</span>}</div>
+      <div className="vh-f" style={cell}><Field id="vfrom" label="From date" type="date" min={OLDEST} maxDate={TODAY} value={f.v.from} onChange={x => f.set("from", x)} onBlur={() => f.blur("from")} error={f.show("from")} valid={f.ok("from")} hint="Earliest visit" /></div>
+      <div className="vh-f" style={cell}><Field id="vto" label="To date" type="date" min={f.v.from && !f.errs.from ? f.v.from : OLDEST} maxDate={TODAY} value={f.v.to} onChange={x => f.set("to", x)} onBlur={() => f.blur("to")} error={f.show("to")} valid={f.ok("to")} hint="Latest visit" /></div>
       <div className="vh-f" style={cell}><label htmlFor="vh-care">Follow-up</label><select id="vh-care" className="vh-in" value={care} onChange={e => setCare(e.target.value)}><option value="">All follow-ups</option>{["Needs booking", "Booked", "Completed"].map(status => <option key={status}>{status}</option>)}</select></div>
       {filtered && <button className="btn ghost vh-btn" onClick={clear}>Clear filters</button>}
     </div>

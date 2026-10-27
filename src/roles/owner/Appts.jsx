@@ -19,7 +19,7 @@ import { openFollowUps } from "../../clinicalWorkflow.js";
 import { useState, useEffect, useRef } from "react";
 import { Badge, I, ICON, scope, petName, uid, addLog } from "../../lib.jsx";
 import ApptDetails from "./ApptDetails.jsx";
-import { useLive, Field, Suggest, Modal, addNote, prefill, fmt12, ymdLocal } from "./ui.jsx";
+import { useLive, Field, SearchField, Suggest, Modal, addNote, prefill, fmt12, ymdLocal } from "./ui.jsx";
 import { SERVICES, MAX_DAYS, ServicePicker, SlotPicker, inferService, serviceOf, holidayName, durOf, durText, addMin, splitReason } from "./services.jsx";
 
 const liveDoctors = db => (db.vets || []).map(v => [v.id, v.name]);
@@ -156,8 +156,7 @@ function BookForm({ db, setDb, me, say, editing, start, onClose, onExisting }) {
         {availability.error && <button type="button" className="btn ghost" onClick={availability.refresh}>Retry availability</button>}
         <SlotPicker times={times} value={v.time} onChange={x => f.set("time", x)} error={f.show("time")} hint={timeHint} dur={S ? S.dur : 30} suggest={nextDay} onSuggest={() => f.patch({ date: nextDay, time: "" })} />
         {S && v.time && times.includes(v.time) && <p className="ow-note info">{S.label}: {fmt12(v.time)} to {fmt12(addMin(v.time, S.dur))} with {vetName}</p>}
-        <label>Follow-up request (optional)<select value={v.followUpId} disabled={!!editing?.followUpId} onChange={e => f.set("followUpId", e.target.value)}><option value="">Regular visit</option>{db.records.filter(r => r.id === v.followUpId || openFollowUps(db,v.petId).some(x => x.id === r.id)).filter(r => r.petId === v.petId).map(r => <option key={r.id} value={r.id}>{r.followUpDate} · {r.followUpReason}</option>)}</select></label>
-        {f.show("followUpId") && <p className="err" role="alert">{f.show("followUpId")}</p>}
+        <Field id="followUpId" label="Follow-up request (optional)" type="select" emptyLabel="Regular visit" disabled={!!editing?.followUpId} value={v.followUpId} onChange={x => f.set("followUpId", x)} onBlur={() => f.blur("followUpId")} options={db.records.filter(r => r.id === v.followUpId || openFollowUps(db,v.petId).some(x => x.id === r.id)).filter(r => r.petId === v.petId).map(r => [r.id, `${r.followUpDate} · ${r.followUpReason}`])} error={f.show("followUpId")} hint="Link this visit to a follow-up your vet requested" />
         {followUp && <section className="ow-note" aria-label="Selected follow-up instructions"><b>{followUp.careStatus} · Target: {followUp.followUpDate}</b><p style={{whiteSpace:"pre-wrap"}}>{followUp.followUpReason}</p><small>The target is a recommended date. Select an available visit time above.</small></section>}
         <Field id="notes" label="Note for the clinic (optional)" type="textarea" rows={2} max={200} value={v.notes} onChange={x => f.set("notes", x)} onBlur={() => f.blur("notes")} error={f.show("notes")} hint="Symptoms, behavior or anything the clinic should know" />
         <Suggest items={NOTE_IDEAS} onPick={s => f.set("notes", addNote(v.notes, s, 200))} />
@@ -284,9 +283,8 @@ export default function OwnerAppts({ db, setDb, me, say }) {
   return (<>
     {scope(db,me,"appts").some(a=>a.status==="Rejected" && a.date>=TODAY) && <p className="ow-note" role="status">The clinic declined an appointment request. <button className="btn ghost sm" onClick={()=>{setDay("");setView("rejected");}}>View reason</button></p>}
     <div className="ow-appt-toolbar">
-      <div style={{ flex: "2 1 240px", minWidth: 0 }}>
-        <label className="ow-lbl" htmlFor="ap-q">Search</label>
-        <input id="ap-q" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Pet, service, vet, date or status" style={{ width: "100%" }} />
+      <div className="ow-tb-search">
+        <SearchField id="ap-q" label="Search" value={q} onChange={setQ} placeholder="Pet, service, vet, date or status" result={`${list.length} visit${list.length === 1 ? "" : "s"} match`} />
       </div>
       <div style={{ flex: "1 1 150px", minWidth: 0 }}>
         <label className="ow-lbl" htmlFor="ap-view">Show</label>

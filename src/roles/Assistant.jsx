@@ -7,18 +7,20 @@ import AdmissionsPage, { AdmissionsSummary } from './AdmissionsPage.jsx';
 import { PaginatedList } from "../components/Pagination.jsx";
 import FrontDeskApprovals from "./FrontDeskApprovals.jsx";
 import ExistingPatientCheckInModal from "./ExistingPatientCheckInModal.jsx";
-import { assistantQueue, registrationsWithoutVisit, dailyCollections, pendingCheckout, money } from "../assistantWorkflow.js";
+import { assistantQueue, pendingVisitApprovals, registrationsWithoutVisit, dailyCollections, pendingCheckout, money } from "../assistantWorkflow.js";
 import CareFollowUps from "./CareFollowUps.jsx";
 import CheckoutInbox from "./CheckoutInbox.jsx";
 import ReminderStatus from "./ReminderStatus.jsx";
 import { currentVaccinationDue, vaccinationAppointment, vaccinationBooking, vaccinationStatus } from "../ownerVaccination.js";
 import { today, plus } from "../booking.js";
-import { setPrefill } from "./owner/ui.jsx";
+import { setPrefill, SearchField } from "./owner/ui.jsx";
+import "./assistant-desk.css";
 import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays, AlertTriangle, PawPrint, ConciergeBell, Thermometer, Scale, UserCheck, Receipt, ArrowRight, X, Phone, Syringe,
+  ClipboardCheck, Hourglass, Stethoscope, BellRing,
 } from "lucide-react";
-import { Stats, Hero, moveAppt, Badge, ICON, I } from "../lib.jsx";
+import { moveAppt, Badge, ICON, I } from "../lib.jsx";
 import InClinicRegistration from "./InClinicRegistration.jsx";
 import BillingModal from "./BillingModal.jsx";
 import ClinicCalendar from "./ClinicCalendar.jsx";
@@ -50,6 +52,7 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
   const [cardPetId, setCardPetId] = useState(null);
   const [cardAppt, setCardAppt] = useState(null);
   const [logCallTarget, setLogCallTarget] = useState(null);
+  const [search, setSearch] = useState("");
 
   const pendingReqs = registrationsWithoutVisit(db);
   const queue = assistantQueue(db.appts, TODAY);
@@ -59,6 +62,42 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
   const collections = dailyCollections(db.appts, TODAY);
   const todayPaid = collections.paid, todayRevenue = collections.total;
   const unbilledCompleted = pendingCheckout(db.appts, TODAY).visits;
+
+  const requests = pendingVisitApprovals(db.appts, TODAY);
+  const needle = search.trim().toLowerCase();
+  const matches = a => {
+    if (!needle) return true;
+    const pet = db.pets.find(p => p.id === a.petId) || {};
+    const owner = db.owners.find(o => o.id === a.ownerId || sameOwner(o, pet.ownerId)) || {};
+    return [pet.name, a.petName, pet.species, pet.breed, owner.name, a.ownerName, owner.phone, a.reason, a.status, a.time].join(" ").toLowerCase().includes(needle);
+  };
+  const flow = q.filter(matches);
+  const jump = (id, stage) => { if (stage) setQueueStage(stage); requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })); };
+  // "/" jumps to the patient search, like most inbox tools.
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.querySelector(".scrim")) return;
+      e.preventDefault(); document.getElementById("desk-search")?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const hour = new Date().getHours(), greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = String(me.name || "").replace(/^Dr\.?\s+/i, "").split(" ")[0];
+  const tiles = [
+    ["req", ClipboardCheck, requests.length, "Requests to approve", requests.length ? "wa" : "", () => jump("desk-approvals")],
+    ["arr", CalendarDays, queue.arrivals.length, "Expected arrivals", "", () => jump("desk-flow", "arrivals")],
+    ["wait", Hourglass, waiting.length, "Waiting for the vet", waiting.length ? "info" : "", () => jump("desk-flow", "waiting")],
+    ["live", Stethoscope, inConsult.length, "In consultation", "", () => jump("desk-flow", "consultation")],
+    ["pay", Receipt, unbilledCompleted.length, "Ready for checkout", unbilledCompleted.length ? "wa" : "", () => jump("desk-checkout")],
+    ["rem", BellRing, calls.length, "Vaccine reminders", calls.length ? "info" : "", () => jump("desk-reminders")],
+  ];
+  const attention = [
+    requests.length && `${requests.length} request${requests.length > 1 ? "s" : ""} to approve`,
+    queue.overdue.length && `${queue.overdue.length} past-due visit${queue.overdue.length > 1 ? "s" : ""}`,
+    unbilledCompleted.length && `${unbilledCompleted.length} checkout${unbilledCompleted.length > 1 ? "s" : ""} waiting`,
+  ].filter(Boolean);
 
   const openCard = (petId, appt = null) => { setCardPetId(petId); setCardAppt(appt); };
   const closeCard = () => { setCardPetId(null); setCardAppt(null); };
@@ -89,77 +128,53 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
 
   return (
     <>
-      <Hero
-        title="Front Desk and Clinic Operations"
-        text="Review visit requests, welcome patients and keep every step of their care moving."
-        icons={["bell", "cat"]}
-      >
-        <div className="sf-actions">
+      <header className="desk-head">
+        <div className="desk-welcome">
+          <span className="desk-date">{new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}</span>
+          <h2>{greeting}{firstName ? `, ${firstName}` : ""}</h2>
+          <p>{attention.length ? `You have ${attention.join(", ")}.` : "Nothing is waiting on you right now. New requests and checkouts will appear here."}</p>
+        </div>
+        <div className="desk-quick" role="group" aria-label="Quick actions">
           <button className="btn gold" onClick={() => setShowWalkIn(true)}><ConciergeBell size={16} aria-hidden="true" />Register new walk-in</button>
           <button className="btn" onClick={() => setShowExistingWalkIn(true)} title="Quick check-in for patients who are already registered"><UserCheck size={16} aria-hidden="true" />Existing patient check-in</button>
-          <button className="btn" onClick={() => go("cal")}><CalendarDays size={16} aria-hidden="true" />Appointments and calendar</button>
-          {pendingReqs.length > 0 && (
-            <button className="btn gold" onClick={() => go("pet-requests")}><PawPrint size={16} aria-hidden="true" />Pets without a visit ({pendingReqs.length})</button>
-          )}
+          <button className="btn ghost" onClick={() => go("cal")}><CalendarDays size={16} aria-hidden="true" />Calendar</button>
+          {pendingReqs.length > 0 && <button className="btn ghost" onClick={() => go("pet-requests")}><PawPrint size={16} aria-hidden="true" />Pets without a visit ({pendingReqs.length})</button>}
         </div>
-      </Hero>
+      </header>
 
-      <FrontDeskApprovals onReject={a=>{setActionError("");setRejecting(a);}} db={db} onReviewPet={setReviewReq} onOpenCard={openCard} onCalendar={() => go("cal")} onConfirm={confirmVisit} confirming={confirming} error={actionError} />
-      <AdmissionsSummary me={me} go={go} />
-      <CareFollowUps db={db} go={go} />
+      <nav className="desk-tiles" aria-label="Today at a glance">
+        {tiles.map(([key, Ic, n, label, tone, fn]) => <button key={key} type="button" className={`desk-tile ${tone}`} onClick={fn}><span className="desk-tile-ic"><Ic size={20} aria-hidden="true" /></span><b>{n}</b><span>{label}</span></button>)}
+        <button type="button" className="desk-tile money" onClick={() => go("sales")}><span className="desk-tile-ic"><Receipt size={20} aria-hidden="true" /></span><b>{money(todayRevenue)}</b><span>Collected today ({todayPaid.length} paid)</span></button>
+      </nav>
+
+      {queue.overdue.length > 0 && queueStage !== "overdue" && <section className="desk-alert" role="alert">
+        <AlertTriangle size={20} aria-hidden="true" />
+        <div><b>{queue.overdue.length} visit{queue.overdue.length > 1 ? "s" : ""} from earlier days {queue.overdue.length > 1 ? "were" : "was"} never checked in.</b><span>Close each one so the calendar and owners see the right status.</span></div>
+        <button type="button" className="btn sm gold" onClick={() => jump("desk-flow", "overdue")}>Review past-due visits</button>
+      </section>}
+
 
       {rejecting && <CancellationDialog reject visit={rejecting} currentVisit={db.appts.find(a=>a.id===rejecting.id)} error={actionError} onClose={()=>setRejecting(null)} onSubmit={async cancelReason=>{if(await moveAppt(setDb,rejecting.id,"Rejected",me,setActionError,rejecting,{cancelReason})){setRejecting(null);say("Appointment request rejected.");}}} />}
 
-      <Stats
-        items={[
-          ["calendar", queue.visits.length, "Total visits today"],
-          ["receipt", money(todayRevenue), `Today's collections (${todayPaid.length} paid)`],
-          ["bell", waiting.length, "Checked in (queue)"],
-          ["stethoscope", inConsult.length, "In consultation"],
-          ["phone", calls.length, "Vaccine reminders due"],
-        ]}
-      />
-
-      <CheckoutInbox me={me} db={db} blocked={Boolean(billingAppt || showWalkIn || showExistingWalkIn || checkInAppt || reviewReq || rejecting || cardPetId || logCallTarget)} onOpen={task => {
-        const visit=db.appts.find(a=>a.id===task.appointmentId);
-        if(!visit || visit.status!=='Completed' || visit.billingStatus==='Paid' || visit.admissionStatus==='Admitted')return false;
-        setBillingAppt(visit);
-        return true;
-      }} />
-
-      <div className="sf-banner">
-        <div className="sf-banner-main">
-          <span className="sf-banner-ic"><Receipt size={22} aria-hidden="true" /></span>
-          <div>
-            <div className="sf-title-row">
-              <b>Today&rsquo;s collections: {money(todayRevenue)}</b>
-              <span className="sf-pill ok">{todayPaid.length} settled</span>
-              {unbilledCompleted.length > 0 && <span className="sf-pill wa">{unbilledCompleted.length} ready for checkout</span>}
-            </div>
-            <small>Collections by payment date in Philippine time. {collections.undated.length > 0 && <>{collections.undated.length} undated payment(s) excluded; review in daily sales. </>}{collections.missingAmounts > 0 && <>{collections.missingAmounts} payment(s) missing an amount; excluded from totals.</>}</small>
+      <div className="desk-grid">
+        <div className="desk-main">
+          <div id="desk-approvals">
+            <FrontDeskApprovals onReject={a=>{setActionError("");setRejecting(a);}} db={db} onReviewPet={setReviewReq} onOpenCard={openCard} onCalendar={() => go("cal")} onConfirm={confirmVisit} confirming={confirming} error={actionError} />
           </div>
-        </div>
-        <button className="btn ghost sm" onClick={() => go("sales")}>Open daily sales<ArrowRight size={15} aria-hidden="true" /></button>
-      </div>
-
-      {queue.overdue.length > 0 && queueStage !== "overdue" && <section className="sf-note" role="alert" style={{marginTop:16}}>
-        <b>{queue.overdue.length} visit{queue.overdue.length > 1 ? "s" : ""} from earlier days {queue.overdue.length > 1 ? "were" : "was"} never checked in.</b> Close each one so the calendar and owners see the right status.{" "}
-        <button type="button" className="btn sm gold" onClick={() => setQueueStage("overdue")}>Review past-due visits</button>
-      </section>}
-      <div className="two" style={{ marginTop: 16 }}>
-        <section className="card">
+        <section className="card desk-flow" id="desk-flow">
           <div className="sf-section-hd">
-            <h3>Patient flow ({q.length})</h3>
+            <h3>Patient flow ({flow.length}{needle ? ` of ${q.length}` : ""})</h3>
             <span className="sf-sub">{TODAY}</span>
           </div>
+          <div className="desk-search"><SearchField id="desk-search" label="Find a patient or owner" value={search} onChange={setSearch} placeholder="Pet name, owner, phone or reason (press / to search)" result={`${flow.length} of ${q.length} in this stage match`} /></div>
 
-          <div className="row" style={{flexWrap:"wrap",gap:6,marginBottom:12}} aria-label="Patient flow stages">
-            {[["arrivals","Expected arrivals"],["waiting","Waiting for vet"],["consultation","In consultation"],["completed","Completed"],["missed","Missed"],...(queue.overdue.length ? [["overdue","Past due"]] : [])].map(([key,label]) => <button key={key} className={`btn sm ${queueStage === key ? "gold" : "ghost"}`} aria-pressed={queueStage === key} onClick={() => setQueueStage(key)}>{label} ({queue[key].length})</button>)}
+          <div className="desk-stages" role="group" aria-label="Patient flow stages">
+            {[["arrivals","Expected arrivals"],["waiting","Waiting for vet"],["consultation","In consultation"],["completed","Completed"],["missed","Missed"],...(queue.overdue.length ? [["overdue","Past due"]] : [])].map(([key,label]) => <button key={key} type="button" className={`desk-stage${queueStage === key ? " on" : ""}${key === "overdue" ? " warn" : ""}`} aria-pressed={queueStage === key} onClick={() => setQueueStage(key)}>{label}<b>{queue[key].length}</b></button>)}
           </div>
           {queueStage === "waiting" && <p className="sf-sub">Emergency and priority patients appear first. The veterinarian decides the clinical response.</p>}
-          {q.length ? (
-            <PaginatedList label="Patient flow" resetKey={queueStage} className="sf-grid">
-              {q.map(a => {
+          {flow.length ? (
+            <PaginatedList label="Patient flow" resetKey={[queueStage, search]} className="sf-grid">
+              {flow.map(a => {
                 const pet = db.pets.find(p => p.id === a.petId) || {};
                 const owner = db.owners.find(o => o.id === a.ownerId || sameOwner(o, pet.ownerId)) || {};
                 const isPaid = a.billingStatus === "Paid";
@@ -220,10 +235,37 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
               })}
             </PaginatedList>
           ) : (
-            <div className="empty sm">{queueStage === "overdue" ? "No past-due visits. Everything from earlier days is closed." : "No patients in this stage today."}</div>
+            <div className="empty sm">{queueStage === "overdue" ? "No past-due visits. Everything from earlier days is closed." : (needle ? "No patients in this stage match your search." : "No patients in this stage today.")}</div>
           )}
         </section>
 
+        </div>
+        <aside className="desk-side" aria-label="Side tasks">
+      <div className="sf-banner">
+        <div className="sf-banner-main">
+          <span className="sf-banner-ic"><Receipt size={22} aria-hidden="true" /></span>
+          <div>
+            <div className="sf-title-row">
+              <b>Today&rsquo;s collections: {money(todayRevenue)}</b>
+              <span className="sf-pill ok">{todayPaid.length} settled</span>
+              {unbilledCompleted.length > 0 && <span className="sf-pill wa">{unbilledCompleted.length} ready for checkout</span>}
+            </div>
+            <small>Collections by payment date in Philippine time. {collections.undated.length > 0 && <>{collections.undated.length} undated payment(s) excluded; review in daily sales. </>}{collections.missingAmounts > 0 && <>{collections.missingAmounts} payment(s) missing an amount; excluded from totals.</>}</small>
+          </div>
+        </div>
+        <button className="btn ghost sm" onClick={() => go("sales")}>Open daily sales<ArrowRight size={15} aria-hidden="true" /></button>
+      </div>
+
+          <div id="desk-checkout">
+      <CheckoutInbox me={me} db={db} blocked={Boolean(billingAppt || showWalkIn || showExistingWalkIn || checkInAppt || reviewReq || rejecting || cardPetId || logCallTarget)} onOpen={task => {
+        const visit=db.appts.find(a=>a.id===task.appointmentId);
+        if(!visit || visit.status!=='Completed' || visit.billingStatus==='Paid' || visit.admissionStatus==='Admitted')return false;
+        setBillingAppt(visit);
+        return true;
+      }} />
+
+          </div>
+          <div id="desk-reminders">
         <ReminderStatus />
         <section className="card">
           <div className="sf-section-hd">
@@ -270,6 +312,10 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
             <div className="empty sm">No certified booster recalls due within 30 days.</div>
           )}
         </section>
+          </div>
+          <AdmissionsSummary me={me} go={go} />
+          <CareFollowUps db={db} go={go} />
+        </aside>
       </div>
 
       {showWalkIn && (

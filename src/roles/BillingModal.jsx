@@ -1,4 +1,5 @@
 import {isCheckoutAddon} from '../checkoutProducts.js';
+import { SearchField } from "./owner/ui.jsx";
 import ClinicDialog from '../components/ClinicDialog.jsx';
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
 import { useFormValidation } from '../components/useFormValidation.jsx';
@@ -255,21 +256,7 @@ export default function BillingModal({ appt, db, setDb, me, onClose, onPaid }) {
 
             {/* Price Basis & Search Catalog */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={{ display: "block", fontSize: "calc(12.5px * var(--fs, 1))", fontWeight: 700, color: "var(--navy)", marginBottom: "4px" }}>
-                Add Shampoo &amp; Accessories
-              </label>
-              <div style={{ position: "relative" }}>
-                <input
-                  type="search"
-                  placeholder="Search shampoo or accessories"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px 8px 34px", fontSize: "calc(13px * var(--fs, 1))", borderRadius: "8px", border: "1.5px solid #cbd5e1" }}
-                />
-                <span style={{ position: "absolute", left: "10px", top: "10px", color: "#94a3b8" }}>
-                  <Search size={16} />
-                </span>
-              </div>
+              <SearchField id="bill-catalog-search" label="Add shampoo & accessories" value={search} onChange={setSearch} placeholder="Search shampoo or accessories" />
 
               {/* Live search results dropdown */}
               {(catalog.length > 0 || search.trim()) && (

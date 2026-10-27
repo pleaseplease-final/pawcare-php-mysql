@@ -1,5 +1,7 @@
 import {currentAppointmentsByPet} from '../assistantWorkflow.js';
+import { SearchField } from "./owner/ui.jsx";
 import OwnerAccountLinkModal from './OwnerAccountLinkModal.jsx';
+import { EditOwnerModal, EditPetModal } from './RecordEditModals.jsx';
 import { ownerForPet, petsForOwner } from "../ownerRelationships.js";
 import { Modal } from "./owner/ui.jsx";
 import "./households.css";
@@ -79,6 +81,8 @@ function getPetVaccState(petId, vaccList) {
 
 export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
   const [linkOwner,setLinkOwner]=useState(null);
+  const [editOwner,setEditOwner]=useState(null);
+  const [editPet,setEditPet]=useState(null);
   const [ownerFilter, setOwnerFilter] = useState("");
   const [householdId, setHouseholdId] = useState(null);
   const [tab, setTab] = useState("patients"); // 'patients' | 'owners'
@@ -97,6 +101,7 @@ export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
   // Front desk priority: patients who already hold an appointment today. Walk-ins are registered from the Front Desk dashboard instead.
   const canBook = canBookAppointments(me?.role);
   const canCheckIn = me?.role === "assistant";
+  const canEditRecords = ["assistant", "admin"].includes(me?.role);
   const todayApptByPet = currentAppointmentsByPet(db.appts || [], bookingToday());
   const isArrivable = a => !!a && a.status === "Scheduled";
 
@@ -234,16 +239,7 @@ export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
         gap: "12px",
         flexWrap: "wrap"
       }}>
-        <div style={{ position: "relative", flex: "1 1 260px", maxWidth: "420px" }}>
-          <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-          <input
-            type="search" aria-label="Search patients and owners"
-            placeholder={tab === "patients" ? "Search patient, owner name, phone, card #..." : "Search client name, phone, address, pet name..."}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "8px 12px 8px 36px", fontSize: "calc(13px * var(--fs, 1))", borderRadius: "8px", border: "1px solid #cbd5e1" }}
-          />
-        </div>
+        <div className="desk-search-inline"><SearchField id="cp-search" label={tab === "patients" ? "Search patients" : "Search clients"} value={search} onChange={setSearch} placeholder={tab === "patients" ? "Patient, owner, phone or card #" : "Client, phone, address or pet"} /></div>
 
         {tab === "patients" && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -535,6 +531,7 @@ export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
                         <td data-label="Quick Access" style={{ padding: "12px 14px", textAlign: "right" }}>
                           <div style={{ display: "inline-flex", flexWrap:"wrap", gap: "8px", alignItems: "center" }}>
                             <button type="button" className="btn sm ghost" onClick={() => setHouseholdId(o.id)}>View household</button>
+                            {canEditRecords && !o.userId && <button type="button" className="btn sm ghost" onClick={() => setEditOwner(o)} aria-label={`Edit ${o.name}`}>Edit</button>}
                             {canCheckIn && !o.userId && <button type="button" className="btn sm" onClick={()=>setLinkOwner(o)}>Link online account</button>}
                             {o.userId && <span className="sf-pill">Online account linked</span>}
                             {canCheckIn && <button
@@ -594,6 +591,7 @@ export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
         <section className="household-summary">
           <span className="household-avatar"><User size={28} aria-hidden="true" /></span>
           <div><span className="household-eyebrow">Registered owner</span><h3>{household.name}</h3><p>{householdPets.length} linked {householdPets.length === 1 ? "patient" : "patients"}</p></div>
+          {canEditRecords && (household.userId ? <small className="household-edit-note">Online account: the owner edits their own details.</small> : <button type="button" className="btn sm ghost household-edit" onClick={() => setEditOwner(household)}>Edit owner</button>)}
         </section>
         <dl className="household-contact">
           <div><dt><Phone size={15} aria-hidden="true" />Mobile</dt><dd>{household.phone || "Not recorded"}</dd></div>
@@ -604,9 +602,13 @@ export default function ClientsAndPatientsPage({ db, setDb, me, go, say }) {
         {householdPets.length ? <PaginatedList className="household-pets" label="Household pets" resetKey={household.id}>{householdPets.map(p => <article key={p.id}>
           <span className="household-species"><I e={ICON[p.species] || "paw"} size={24} /></span>
           <div><h4>{p.name}</h4><p>{p.species}{p.breed ? ` · ${p.breed}` : ""}</p><small>{p.sex || "Sex not recorded"}{p.birth ? ` · ${petAge(p.birth)}` : ""}</small></div>
-          <button type="button" className="btn sm" onClick={() => { setHouseholdId(null); setCardPetId(p.id); }} aria-label={`Open pet record for ${p.name}`}>View pet<ArrowUpRight size={15} aria-hidden="true" /></button>
+          <div className="household-pet-actions">{canEditRecords && (p.registrationStatus || "Verified") === "Verified" && <button type="button" className="btn sm ghost" onClick={() => setEditPet(p)} aria-label={`Edit ${p.name}`}>Edit</button>}
+          <button type="button" className="btn sm" onClick={() => { setHouseholdId(null); setCardPetId(p.id); }} aria-label={`Open pet record for ${p.name}`}>View pet<ArrowUpRight size={15} aria-hidden="true" /></button></div>
         </article>)}</PaginatedList> : <div className="empty sm">No registered pets are linked to this owner yet.</div>}
       </Modal>}
+
+      {editOwner && <EditOwnerModal owner={editOwner} onClose={() => setEditOwner(null)} onSaved={saved => { setDb(d => ({ ...d, owners: d.owners.map(o => o.id === saved.id ? { ...o, ...saved } : o) })); setEditOwner(null); say?.(`${saved.name}’s details were updated.`); }} />}
+      {editPet && <EditPetModal pet={editPet} onClose={() => setEditPet(null)} onSaved={saved => { setDb(d => ({ ...d, pets: d.pets.map(p => p.id === saved.id ? { ...p, ...saved } : p) })); setEditPet(null); say?.(`${saved.name}’s record was updated.`); }} />}
 
       {/* Pet Card Modal Popup */}
       {cardPetId && (

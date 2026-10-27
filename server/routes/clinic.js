@@ -4,6 +4,8 @@ import {ownerAccountLinkRouter} from './ownerAccountLink.js';
 import {resolveWalkInOwner} from '../walkInOwner.js';
 import {vaccinationCardFieldErrors} from '../../src/vaccinationCardFields.js';
 import {externalHistoryErrors} from '../../src/externalHistory.js';
+import {ownerDetailErrors,petDetailErrors,tidy,phoneKey} from '../../src/recordCorrection.js';
+import {clinicToday} from '../../src/ageRules.js';
 import {bookingReasonErrors,bookingReason} from '../../src/bookingReason.js';
 import {digitalVetCardRouter} from './digitalVetCard.js';
 import {ensureDigitalVetCardSchema,internalCardReference,refreshDigitalVetCard} from '../digitalVetCard.js';
@@ -1006,6 +1008,52 @@ clinicRouter.post(['/owner/pets/:id/photo','/pets/:id/photo'],async (req,res) =>
 });
 
 clinicRouter.put('/pets/:id/allergies', saveAllergies);
+// Front desk and administrators correct the official owner and patient record. Each save is checked against what the form was opened with.
+const correctionError = (message, status = 400, errors) => Object.assign(new Error(message), { status, errors });
+const sameText = (a, b) => tidy(a) === tidy(b);
+const correctionFailure = (res, error, fallback) => res.status(error.status || 500).json({ error: error.status ? error.message : fallback, ...(error.errors ? { errors: error.errors } : {}) });
+const isoDay = value => value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
+clinicRouter.put('/owners/:id/details', async (req, res) => {
+  try {
+    const input = req.body || {}, errors = ownerDetailErrors(input);
+    if (Object.keys(errors).length) throw correctionError('Check the highlighted fields.', 400, errors);
+    const expected = input.expected || {};
+    const owner = await withTransaction(async client => {
+      const row = (await client.query('SELECT * FROM owners WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
+      if (!row) throw correctionError('This owner is no longer in the records. Refresh clinic records.', 404);
+      if (row.user_id) throw correctionError('This owner has a verified online account. They update their own name and contact details from My Profile.', 409);
+      if (!sameText(row.name, expected.name) || phoneKey(row.phone) !== phoneKey(expected.phone) || !sameText(row.email, expected.email) || !sameText(row.address, expected.address)) throw correctionError('Another staff member changed this owner. Close this form, review the latest details and try again.', 409);
+      const next = { name: tidy(input.name), phone: phoneKey(input.phone), email: String(input.email ?? '').trim().toLowerCase(), address: tidy(input.address) };
+      const changed = ['name', 'phone', 'email', 'address'].filter(key => !sameText(row[key], next[key]));
+      if (!changed.length) return row;
+      const saved = (await client.query('UPDATE owners SET name=$2,phone=$3,email=$4,address=$5 WHERE id=$1 RETURNING *', [row.id, next.name, next.phone, next.email, next.address])).rows[0];
+      await client.query('INSERT INTO audit_logs (user_name,user_role,action) VALUES ($1,$2,$3)', [req.user.name, req.user.role, `Corrected owner record ${row.id}: ${changed.join(', ')}`]);
+      return saved;
+    });
+    res.json({ success: true, owner: { id: owner.id, name: owner.name, phone: owner.phone, email: owner.email, address: owner.address } });
+  } catch (error) { correctionFailure(res, error, 'Unable to save the owner details. Please retry.'); }
+});
+clinicRouter.put('/pets/:id/details', async (req, res) => {
+  try {
+    const input = req.body || {}, errors = petDetailErrors(input, clinicToday());
+    if (Object.keys(errors).length) throw correctionError('Check the highlighted fields.', 400, errors);
+    const expected = input.expected || {};
+    const pet = await withTransaction(async client => {
+      const row = (await client.query('SELECT * FROM pets WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
+      if (!row) throw correctionError('This patient is no longer in the records. Refresh clinic records.', 404);
+      if ((row.registration_status || 'Verified') !== 'Verified') throw correctionError('Review pending registrations from Online Pet Requests before editing the record.', 409);
+      const current = { name: row.name, breed: row.breed, sex: row.sex, birth: isoDay(row.birth), color: row.color, neutered: row.neutered, notes: row.notes };
+      if (Object.keys(current).some(key => !sameText(current[key], expected[key]))) throw correctionError('Another staff member changed this patient. Close this form, review the latest details and try again.', 409);
+      const next = { name: tidy(input.name), breed: tidy(input.breed) || 'Mixed Breed', sex: input.sex, birth: input.birth, color: tidy(input.color), neutered: input.neutered, notes: String(input.notes ?? '').trim() };
+      const changed = Object.keys(next).filter(key => !sameText(current[key], next[key]));
+      if (!changed.length) return row;
+      const saved = (await client.query('UPDATE pets SET name=$2,breed=$3,sex=$4,birth=$5,color=$6,neutered=$7,notes=$8 WHERE id=$1 RETURNING *', [row.id, next.name, next.breed, next.sex, next.birth, next.color, next.neutered, next.notes])).rows[0];
+      await client.query('INSERT INTO audit_logs (user_name,user_role,action) VALUES ($1,$2,$3)', [req.user.name, req.user.role, `Corrected patient record ${row.id}: ${changed.join(', ')}`]);
+      return saved;
+    });
+    res.json({ success: true, pet: { id: pet.id, name: pet.name, breed: pet.breed, sex: pet.sex, birth: isoDay(pet.birth), color: pet.color || '', neutered: pet.neutered || 'Not sure', notes: pet.notes || '' } });
+  } catch (error) { correctionFailure(res, error, 'Unable to save the patient details. Please retry.'); }
+});
 clinicRouter.put('/pets/:id/reference-history', async (req,res) => {
   try {
     const error=Object.values(externalHistoryErrors(req.body)).find(Boolean);

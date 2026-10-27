@@ -1,4 +1,5 @@
 import {useHistoryComplete} from '../ClinicHistory.jsx';
+import { SearchField } from "./owner/ui.jsx";
 import {today,plus} from '../booking.js';
 import {currentVaccinationDue,vaccinationStatus} from '../ownerVaccination.js';
 import { PaginatedTable } from "../components/Pagination.jsx";
@@ -151,6 +152,8 @@ export default function ReportsPage({ db, me }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [search, setSearch] = useState("");
+  const dateIssue = (d, label) => d && (d < "2000-01-01" ? `${label} must be in 2000 or later.` : d > "2100-12-31" ? `${label} must be before 2101.` : "");
+  const fromError = dateIssue(from, "From date"), toError = dateIssue(to, "To date") || (from && to && from > to ? "To date must be on or after the From date." : "");
   const [category, setCategory] = useState("");
 
   const currentCfg = (REPORT_CONFIG[reportType]?.adminOnly && me.role !== "admin" ? null : REPORT_CONFIG[reportType]) || REPORT_CONFIG.appts;
@@ -361,7 +364,7 @@ export default function ReportsPage({ db, me }) {
                 min="2000-01-01" max={to || "2100-12-31"}
                 onChange={e => setFrom(e.target.value)}
                 style={{ fontSize: "calc(12.5px * var(--fs, 1))", padding: "6px 10px" }}
-                aria-label="Filter from date"
+                aria-label="Filter from date" aria-invalid={!!fromError} aria-describedby="report-date-msg"
               />
               <span style={{ color: "#94a3b8" }}>➜</span>
               <input
@@ -370,8 +373,9 @@ export default function ReportsPage({ db, me }) {
                 min={from || "2000-01-01"} max="2100-12-31"
                 onChange={e => setTo(e.target.value)}
                 style={{ fontSize: "calc(12.5px * var(--fs, 1))", padding: "6px 10px" }}
-                aria-label="Filter to date"
+                aria-label="Filter to date" aria-invalid={!!toError} aria-describedby="report-date-msg"
               />
+              <span id="report-date-msg" className="err" role="status" aria-live="polite" style={{ flexBasis: "100%" }}>{fromError || toError}</span>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                 {[
@@ -401,16 +405,7 @@ export default function ReportsPage({ db, me }) {
           </label>
 
           {/* Quick Search Within Report */}
-          <div style={{ position: "relative", flex: "1 1 240px" }}>
-            <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)" }} />
-            <input
-              type="search"
-              placeholder={`Search in ${currentCfg.title.toLowerCase()}...`}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ width: "100%", paddingLeft: "32px", fontSize: "calc(12.5px * var(--fs, 1))" }}
-            />
-          </div>
+          <div style={{ flex: "1 1 260px", maxWidth: 420 }}><SearchField id="report-search" label="Search this report" value={search} onChange={setSearch} placeholder={`Search in ${currentCfg.title.toLowerCase()}`} /></div>
         </div>
 
         {isDateInvalid && (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SearchField } from "./owner/ui.jsx";
 import { api } from '../api.js';
 import { calculateSupply, editablePrescription, prescriptionText, rxLineErrors } from '../prescription.js';
 import { courseDays, DOSE_UNITS, DOSE_ROUTES } from '../clinicalGuide.js';
@@ -35,7 +36,7 @@ export default function PrescriptionBuilder({items, onChange, notes, onNotes, er
   return <section className="rx-builder" aria-label="Product prescriptions">
     <h4>Prescription &amp; take-home products</h4>
     <p>Select the product, then enter the dose, how often and for how long. The quantity and directions are calculated for you. Selected products load into reception billing when you finalize the consultation.</p>
-    <div className="rx-grid"><label>Find product<input type="search" value={search} onChange={e => setSearch(e.target.value)} /></label><label>Product category<select value={category} onChange={e => setCategory(e.target.value)}><option value="">All products</option>{[...new Set(catalog.map(p => p.category))].map(c => <option key={c}>{c}</option>)}</select></label></div>
+    <div className="rx-grid"><SearchField id="rx-product-search" label="Find product" value={search} onChange={setSearch} placeholder="Product name or description" /><label>Product category<select value={category} onChange={e => setCategory(e.target.value)}><option value="">All products</option>{[...new Set(catalog.map(p => p.category))].map(c => <option key={c}>{c}</option>)}</select></label></div>
     {loadError ? <p role="alert">{loadError} <button type="button" className="btn sm" onClick={() => retry(n => n + 1)}>Retry products</button></p> : !catalog.length ? <p role="status">Loading products…</p> : <div className="rx-catalog">{found.map(p => <button type="button" className="rx-product" key={p.id} disabled={selected.has(p.id) || items.length >= 30} onClick={() => onChange([...items, {catalogId: p.id, name: p.name, price: p.price, unit: p.unit || 'item / package', category: p.category, quantity: 1, instructions: ''}])}><span><b>{p.name}</b><small>{p.category}{p.group ? ` · ${p.group}` : ''}{p.requiresPrescription ? ' · Prescription required' : ''}</small></span><b>₱{p.price.toLocaleString()} {selected.has(p.id) ? '✓' : '+'}</b></button>)}{!found.length && <p>No products match.</p>}</div>}
     {items.map(item => {
       const p = item, id = p.catalogId, errors = rxLineErrors(p), d = p.dose;

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SearchField } from "./owner/ui.jsx";
 import { ArrowUpRight, Search, Syringe } from "lucide-react";
 import { PaginatedList } from "../components/Pagination.jsx";
 import { I, ICON } from "../lib.jsx";
@@ -26,9 +27,7 @@ export default function VaccinationCards(props) {
       <span className="workspace-count"><Syringe size={15} aria-hidden="true" />{pets.length} patients</span>
     </header>
     <div className="vaccine-directory-tools">
-      <label htmlFor="patient-card-search">Find a patient
-        <span><Search size={17} aria-hidden="true" /><input id="patient-card-search" type="search" placeholder="Patient, owner, species or card number" value={search} onChange={e => setSearch(e.target.value)} /></span>
-      </label>
+      <div className="desk-search-inline"><SearchField id="patient-card-search" label="Find a patient" value={search} onChange={setSearch} placeholder="Patient, owner, species or card number" /></div>
       <p role="status">{matches.length} matching {matches.length === 1 ? "patient" : "patients"}</p>
     </div>
     {matches.length ? <PaginatedList label="Patient vaccination cards" resetKey={search} className="vaccine-directory-grid">

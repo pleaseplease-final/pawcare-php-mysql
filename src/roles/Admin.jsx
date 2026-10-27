@@ -1,4 +1,5 @@
 import ClinicDialog from '../components/ClinicDialog.jsx';
+import { SearchField } from "./owner/ui.jsx";
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
 import NoteOptionsPage from "./NoteOptionsPage.jsx";
 import CatalogPage from "./CatalogPage.jsx";
@@ -29,7 +30,8 @@ import {
   CheckCircle2,
   ShieldAlert
 } from "lucide-react";
-import { M, by, Stats, Hero, TODAY, plus, ROLES, VETS, uid, addLog, Badge } from "../lib.jsx";
+import "./assistant-desk.css";
+import { M, by, TODAY, plus, ROLES, VETS, uid, addLog, Badge } from "../lib.jsx";
 import { auth } from "../authApi.js";
 import { pn, emOk, tc } from "../validate.js";
 import ClinicCalendar from "./ClinicCalendar.jsx";
@@ -353,6 +355,7 @@ function Dash({ db, setDb, me, go, say }) {
   const inactiveCare = unfinished.filter(a=>inactiveIds.includes(a.vetId));
   const reassign = db.appts.filter(a=>a.date >= TODAY && ["Pending Approval","Scheduled"].includes(a.status) && inactiveIds.includes(a.vetId));
 
+  const attention = locked.length + reassign.length + inactiveCare.length + unpaid.length;
   const logs = (db.log || []).filter(l => {
     const text = (l.msg || l.action || "").toLowerCase();
     const actor = auditActivity(l).actor.toLowerCase();
@@ -363,37 +366,31 @@ function Dash({ db, setDb, me, go, say }) {
 
   return (
     <>
-      <Hero
-        title={`Administrator Console · ${me.name}`}
-        text="Review clinic exceptions, manage staff access, audit settled payments and inspect clinical records. Reception and veterinarians carry out patient care."
-        icons={["hospital", "shield"]}
-      >
-        <div className="row" style={{ flexWrap: "wrap", gap: "10px" }}>
-          <button className="btn gold" onClick={() => setShowStaffModal(true)}>
-            + Invite Staff
-          </button>
-          <button className="btn" onClick={() => go("users")}>
-            Manage Staff Access
-          </button>
-          <button className="btn ghost" onClick={() => go("cal")}>
-            Clinic Master Calendar
-          </button>
-          <button className="btn ghost" onClick={() => go("reports")}>
-            View Clinic Reports
-          </button>
+      <header className="desk-head">
+        <div className="desk-welcome">
+          <span className="desk-date">{new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}</span>
+          <h2>Administrator Console</h2>
+          <p>{attention ? `${attention} item${attention === 1 ? "" : "s"} need${attention === 1 ? "s" : ""} your attention: ${[locked.length && `${locked.length} locked account${locked.length > 1 ? "s" : ""}`, reassign.length && `${reassign.length} visit${reassign.length > 1 ? "s" : ""} to reassign`, inactiveCare.length && `${inactiveCare.length} unfinished with inactive staff`, unpaid.length && `${unpaid.length} unpaid completed visit${unpaid.length > 1 ? "s" : ""}`].filter(Boolean).join(", ")}.` : "No clinic exceptions right now. Staff access, sales and records are in good shape."}</p>
         </div>
-      </Hero>
+        <div className="desk-quick" role="group" aria-label="Quick actions">
+          <button className="btn gold" onClick={() => setShowStaffModal(true)}><UserPlus size={16} aria-hidden="true" />Invite staff</button>
+          <button className="btn" onClick={() => go("users")}>Manage staff access</button>
+          <button className="btn ghost" onClick={() => go("catalog")}>Services &amp; products</button>
+          <button className="btn ghost" onClick={() => go("reports")}>Reports</button>
+        </div>
+      </header>
 
-      <Stats
-        items={[
-          ["user", db.owners.length, "Registered Owners"],
-          ["paw", db.pets.length, "Animal Patients"],
-          ["shield", staff.data?.accountCount ?? "—", "Registered accounts"],
-          ["calendar", db.appts.filter(a => a.date === TODAY).length, "Today's Appointments"],
-          ["alert", currentVaccinationDue(db.vacc).filter(v=>v.nextDue<TODAY).length, "Certified booster recalls overdue"],
-          ["file", db.totals?.consultations ?? db.records.length, "Consultations on File"],
-        ]}
-      />
+      <nav className="desk-tiles" aria-label="Clinic at a glance">
+        {[
+          [UserPlus, db.owners.length, "Registered owners", "", "clients-patients"],
+          [Stethoscope, db.pets.length, "Animal patients", "", "clients-patients"],
+          [ShieldAlert, staff.data?.accountCount ?? "—", "Registered accounts", locked.length ? "wa" : "", "users"],
+          [Calendar, db.appts.filter(a => a.date === TODAY).length, "Today's appointments", "", "cal"],
+          [AlertTriangle, currentVaccinationDue(db.vacc).filter(v => v.nextDue < TODAY).length, "Booster recalls overdue", currentVaccinationDue(db.vacc).some(v => v.nextDue < TODAY) ? "wa" : "", "records"],
+          [CreditCard, unpaid.length, "Completed, unpaid", unpaid.length ? "wa" : "", "sales"],
+        ].map(([Ic, n, label, tone, page]) => <button key={label} type="button" className={`desk-tile ${tone}`} onClick={() => go(page)}><span className="desk-tile-ic"><Ic size={20} aria-hidden="true" /></span><b>{n}</b><span>{label}</span></button>)}
+      </nav>
+
 
       {/* Operational Triage: Needs Attention Board */}
       <section className="card admin-exceptions" style={{ marginTop: 16, padding: "24px" }}>
@@ -658,14 +655,7 @@ function Dash({ db, setDb, me, go, say }) {
               Latest 100 saved entries. Open System Audit Trail to search older activity.
             </p>
           </div>
-          <input
-            type="search"
-            aria-label="Search recent clinic activity"
-            placeholder="Search audit trail..."
-            value={logSearch}
-            onChange={e => setLogSearch(e.target.value)}
-            style={{ width: "240px", padding: "6px 12px", fontSize: "calc(13px * var(--fs, 1))" }}
-          />
+          <div className="desk-search-inline"><SearchField id="recent-activity-search" label="Search recent activity" value={logSearch} onChange={setLogSearch} placeholder="Person, action or role" result={`${logs.length} entr${logs.length === 1 ? "y" : "ies"} match`} /></div>
         </div>
 
         {logs.length ? (

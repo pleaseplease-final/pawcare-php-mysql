@@ -6,8 +6,10 @@ import { PaginatedList } from "../components/Pagination.jsx";
 import HandoffModal from "./HandoffModal.jsx";
 import VaccinationCards from "./VaccinationCards.jsx";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Thermometer, Scale, CalendarDays, Search, Play, FileText } from "lucide-react";
-import { I, Stats, Hero, TODAY, plus, moveAppt, petName, ICON, Badge } from "../lib.jsx";
+import { AlertTriangle, Thermometer, Scale, CalendarDays, Search, Play, FileText, Hourglass, Stethoscope, CheckCircle2, History, Syringe } from "lucide-react";
+import { SearchField } from "./owner/ui.jsx";
+import "./assistant-desk.css";
+import { I, TODAY, plus, moveAppt, petName, ICON, Badge } from "../lib.jsx";
 import SoapConsultationModal from "./SoapConsultationModal.jsx";
 import ClinicCalendar from "./ClinicCalendar.jsx";
 import ClientsAndPatientsPage from "./ClientsAndPatientsPage.jsx";
@@ -28,11 +30,19 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
   const [actionError, setActionError] = useState("");
   const [handoff, setHandoff] = useState(null);
   const [activeSoap, setActiveSoap] = useState(null); // { appt, pet }
+  const [search, setSearch] = useState("");
 
   const stages = vetQueue(db.appts || [], TODAY, [me.id, me.vetId].filter(Boolean));
   const { waiting, active: inConsult, completed, expected: notArrived } = stages;
   const queue = [...waiting, ...inConsult, ...completed];
-  const displayed=stages[stage].filter(a=>period==='all' || (period==='today' ? a.date===TODAY : a.date<TODAY));
+  const needle = search.trim().toLowerCase();
+  const matches = a => {
+    if (!needle) return true;
+    const pet = db.pets.find(p => p.id === a.petId) || {}, owner = db.owners.find(o => o.id === pet.ownerId) || {};
+    return [pet.name, pet.species, pet.breed, owner.name, a.reason, a.time].join(" ").toLowerCase().includes(needle);
+  };
+  const byPeriod = a => period==='all' || (period==='today' ? a.date===TODAY : a.date<TODAY);
+  const displayed=stages[stage].filter(byPeriod).filter(matches);
   const carryover=[...waiting,...inConsult].filter(a=>a.date<TODAY);
   const due = certifiedRecalls(db.vacc || [], plus(14));
 
@@ -75,39 +85,38 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
   return (
     <>
       {intake&&<CheckInModal appt={intake} db={db} setDb={setDb} me={me} onClose={()=>setIntake(null)} onCheckedIn={()=>{setIntake(null);say("Measured vitals saved; earlier measurements retained.");}}/>}
-      <Hero
-        title={`Clinical Desk: ${doctorName(me.name)}`}
-        text={`${waiting.length} checked-in patient${waiting.length === 1 ? "" : "s"} waiting in your assigned queue.`}
-        icons={["stethoscope", "dog"]}
-      >
-        <div className="sf-actions">
-          {waiting.length > 0 && (
-            <button className="btn gold" disabled={!!startingId} onClick={() => startConsult(waiting[0])}>
-              <Play size={16} aria-hidden="true" />{startingId ? "Starting consultation…" : `Start next consultation (${petName(db, waiting[0].petId)})`}
-            </button>
-          )}
-          <button className="btn" onClick={() => go("cal")}><CalendarDays size={16} aria-hidden="true" />View schedule</button>
-          <button className="btn" onClick={() => go('admissions')}>Admit or monitor a pet</button>
-          <button className="btn" onClick={() => go("pets")}><Search size={16} aria-hidden="true" />Search patient EMR</button>
+      <header className="desk-head">
+        <div className="desk-welcome">
+          <span className="desk-date">{new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}</span>
+          <h2>Clinical Desk: {doctorName(me.name)}</h2>
+          <p>{waiting.length ? `${waiting.length} checked-in patient${waiting.length === 1 ? "" : "s"} waiting in your queue.` : "Your waiting queue is clear."}{inConsult.length ? ` ${inConsult.length} consultation${inConsult.length === 1 ? "" : "s"} in progress.` : ""}{carryover.length ? ` ${carryover.length} unfinished from earlier days.` : ""}</p>
         </div>
-      </Hero>
-      <AdmissionsSummary me={me} go={go} />
+        <div className="desk-quick" role="group" aria-label="Quick actions">
+          {waiting.length > 0 && <button className="btn gold" disabled={!!startingId} onClick={() => startConsult(waiting[0])}><Play size={16} aria-hidden="true" />{startingId ? "Starting consultation…" : `Start next: ${petName(db, waiting[0].petId)}`}</button>}
+          <button className="btn" onClick={() => go("cal")}><CalendarDays size={16} aria-hidden="true" />Schedule</button>
+          <button className="btn ghost" onClick={() => go("admissions")}>Admit or monitor a pet</button>
+          <button className="btn ghost" onClick={() => go("pets")}><Search size={16} aria-hidden="true" />Patient EMR</button>
+        </div>
+      </header>
 
-      <Stats
-        items={[
-          ["stethoscope", queue.filter(a=>a.date===TODAY).length, "Visits checked in today"],
-          ["clock", carryover.length, "Unfinished from earlier days"],
-          ["clock", waiting.length, "Waiting in queue"],
-          ["file", inConsult.length, "In consultation"],
-          ["check", completed.length, "Completed today"],
-          ["syringe", due.length, "Certified boosters due / overdue (14 days)"],
-        ]}
-      />
+      <nav className="desk-tiles" aria-label="Queue at a glance">
+        {[
+          [Hourglass, waiting.length, "Waiting in queue", waiting.length ? "wa" : "", "waiting", "all"],
+          [Stethoscope, inConsult.length, "In consultation", inConsult.length ? "info" : "", "active", "all"],
+          [CheckCircle2, completed.length, "Completed", "", "completed", "all"],
+          [History, carryover.length, "Unfinished from earlier days", carryover.length ? "wa" : "", carryover.some(a => a.status === "Checked-in") ? "waiting" : "active", "earlier"],
+        ].map(([Ic, n, label, tone, st, per]) => <button key={label} type="button" className={`desk-tile ${tone}`} onClick={() => { setStage(st); setPeriod(per); document.getElementById("vet-queue")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><span className="desk-tile-ic"><Ic size={20} aria-hidden="true" /></span><b>{n}</b><span>{label}</span></button>)}
+        <button type="button" className="desk-tile" onClick={() => go("vacc")}><span className="desk-tile-ic"><Syringe size={20} aria-hidden="true" /></span><b>{due.length}</b><span>Certified boosters due (14 days)</span></button>
+      </nav>
+
+
 
       {startingId && <p role="status">Starting consultation… Please wait for confirmation.</p>}
       {actionError && <p role="alert" className="sf-note">{actionError}</p>}
 
-      <section className="card vet-queue" style={{ marginTop: 16 }}>
+      <div className="desk-grid">
+      <div className="desk-main">
+      <section className="card vet-queue desk-flow" id="vet-queue">
         <div className="sf-section-hd">
           <div>
             <h3>Active clinical queue</h3>
@@ -116,18 +125,19 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
           <span className="meta">Assigned patients only</span>
         </div>
 
-        <div className="sf-actions vet-queue-tabs" role="group" aria-label="Queue stage" style={{flexWrap: "wrap", marginBottom: 12}}>
+        <div className="desk-search"><SearchField id="vet-search" label="Find a patient in this queue" value={search} onChange={setSearch} placeholder="Pet, owner, breed or reason" result={`${displayed.length} of ${stages[stage].filter(byPeriod).length} match`} /></div>
+        <div className="desk-stages vet-queue-tabs" role="group" aria-label="Queue stage">
           {[["waiting", "Waiting"], ["active", "Active"], ["completed", "Completed"]].map(([key, label]) => (
-            <button key={key} className={`btn sm ${stage === key ? "gold" : "ghost"}`} aria-pressed={stage === key} onClick={() => {setStage(key);setPeriod("all");}}>{label} ({stages[key].length})</button>
+            <button key={key} type="button" className={`desk-stage${stage === key ? " on" : ""}`} aria-pressed={stage === key} onClick={() => {setStage(key);setPeriod("all");}}>{label}<b>{stages[key].length}</b></button>
           ))}
         </div>
-        <div className="row" style={{gap:8,flexWrap:'wrap',marginBottom:12}} role="group" aria-label="Visit dates">
+        <div className="row desk-periods" style={{gap:8,flexWrap:'wrap',marginBottom:12}} role="group" aria-label="Visit dates">
           {[["all","All dates"],["today","Today"],["earlier","Earlier unfinished"]].map(([key,label])=><button key={key} className={`btn sm ${period===key?'gold':'ghost'}`} aria-pressed={period===key} onClick={()=>setPeriod(key)}>{label}</button>)}
         </div>
         {carryover.length>0 && <p className="sf-note">{carryover.length} unfinished visit(s) from earlier days remain in the queue. Review their care status; emergency and priority patients keep their clinical priority.</p>}
         {stage === "waiting" && <p className="vet-queue-help">Emergency and priority patients appear first, followed by appointment date and time.</p>}
         {displayed.length ? (
-          <PaginatedList label="Patient queue" resetKey={[stage,period]} className="sf-grid">
+          <PaginatedList label="Patient queue" resetKey={[stage,period,search]} className="sf-grid">
             {displayed.map(a => {
               const p = db.pets.find(x => x.id === a.petId) || {};
               const o = db.owners.find(x => x.id === p.ownerId) || {};
@@ -181,6 +191,20 @@ function Dash({ db, setDb, me, go, say, navigation, onNavigationHandled }) {
           <div className="empty sm vet-queue-empty"><I e={stage==='completed'?'check':'stethoscope'} size={28} /><h4>{period!=='all'?'No visits in this date group':stage==='waiting'?'Your waiting queue is clear':stage==='active'?'No consultations in progress':'No completed visits yet'}</h4><p>{stage==='waiting'?'Patients appear here after the front desk completes check-in.':stage==='active'?'Start a checked-in patient from Waiting to begin their visit notes.':'Completed consultations and their saved notes appear here.'}</p></div>
         )}
       </section>
+      </div>
+      <aside className="desk-side" aria-label="Side tasks">
+        {waiting[0] && (() => { const a = waiting[0], p = db.pets.find(x => x.id === a.petId) || {}, iv = a.intakeVitals; return <section className="card desk-next" aria-label="Next patient">
+          <span className="sf-eyebrow">Next patient</span>
+          <h3>{p.name || "Patient"} <small>{a.time}</small></h3>
+          <p>{a.reason}</p>
+          {iv?.triageLevel && iv.triageLevel !== "Routine" && <span className={`sf-pill ${iv.triageLevel === "Emergency" ? "er" : "wa"}`}><AlertTriangle size={12} aria-hidden="true" />Triage: {iv.triageLevel}</span>}
+          {p.allergies?.length > 0 && <span className="sf-pill er">Allergic: {p.allergies.join(", ")}</span>}
+          <div className="sf-chips">{iv ? <><span className={`sf-chip ${tempTone(iv.tempAnalysis?.status)}`}><Thermometer size={12} aria-hidden="true" />{iv.temp}&deg;C</span><span className={`sf-chip ${weightTone(iv.weightAnalysis?.status)}`}><Scale size={12} aria-hidden="true" />{iv.weight} kg</span></> : <span className="sf-chip mu">Awaiting intake vitals</span>}</div>
+          <button type="button" className="btn gold" disabled={!!startingId} onClick={() => startConsult(a)}><Play size={16} aria-hidden="true" />{startingId === a.id ? "Starting…" : "Start consultation"}</button>
+        </section>; })()}
+        <AdmissionsSummary me={me} go={go} />
+      </aside>
+      </div>
 
       {selectedRecord && <ConsultationDetailModal record={selectedRecord} db={db} setDb={setDb} me={me} onClose={() => setSelectedRecord(null)} />}
       {handoff && <HandoffModal appt={handoff} db={db} me={me} setDb={setDb} onClose={() => setHandoff(null)} />}

@@ -2,6 +2,7 @@ import '../services-prices.css';
 import { PaginatedList } from "../../components/Pagination.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../../api.js";
+import { SearchField } from "./ui.jsx";
 
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 const isProduct = item => item.id.startsWith("product_") || item.requiresPrescription;
@@ -40,7 +41,7 @@ export default function Prices({ go, staff=false }) {
       {[["all", "All offers"], ["services", "Veterinary services"], ["products", "Pet products"]].map(([value, label]) => <button key={value} className={`btn sm ${type === value ? "" : "ghost"}`} aria-pressed={type === value} onClick={() => { setType(value); setCategory(""); }}>{label}</button>)}
     </div>
     <div className="ow-price-filters">
-      <div><label className="ow-lbl" htmlFor="price-search">Find a vaccine, service or product</label><input id="price-search" type="search" placeholder="Search by name or description" value={search} onChange={e => setSearch(e.target.value)} /></div>
+      <SearchField id="price-search" label="Find a vaccine, service or product" value={search} onChange={setSearch} placeholder="Search by name or description" result={`${visible.length} offer${visible.length === 1 ? "" : "s"} match`} />
       <div><label className="ow-lbl" htmlFor="price-category">Category</label><select id="price-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(name => <option key={name}>{name}</option>)}</select></div>
     </div>
     {error ? <p role="alert">Prices could not be loaded. {error} <button className="btn sm" onClick={() => retry(x => x + 1)}>Retry</button></p>

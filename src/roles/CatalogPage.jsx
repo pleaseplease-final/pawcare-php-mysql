@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SearchField } from './owner/ui.jsx';
+import './assistant-desk.css';
 import { clinicRequest } from '../clinicApi.js';
 import ClinicDialog from '../components/ClinicDialog.jsx';
 import { PaginatedTable } from '../components/Pagination.jsx';
@@ -114,7 +116,7 @@ export default function CatalogPage() {
     </section>
     <section className="card">
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginBottom: 14}}>
-        <input type="search" aria-label="Search the price list" placeholder="Search name or category" value={q} onChange={e => setQ(e.target.value)} style={{gridColumn: 'span 2', minWidth: 0}} />
+        <div style={{gridColumn: 'span 2', minWidth: 0}}><SearchField id="catalog-search" label="Search the price list" value={q} onChange={setQ} placeholder="Name or category" result={`${shown.length} item${shown.length === 1 ? '' : 's'} match`} /></div>
         <select aria-label="Filter by category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select>
         <select aria-label="Filter by type" value={kind} onChange={e => setKind(e.target.value)}><option value="">Services and products</option><option value="service">Services</option><option value="product">Products</option></select>
         <select aria-label="Filter by status" value={status} onChange={e => setStatus(e.target.value)}><option value="active">Active</option><option value="retired">Retired</option><option value="all">All</option></select>

@@ -1,8 +1,9 @@
 import CheckoutInbox from './CheckoutInbox.jsx';
+import { SearchField } from "./owner/ui.jsx";
 import DocumentHeader from "../components/DocumentHeader.jsx";
 import { PaginatedTable } from "../components/Pagination.jsx";
 import {useFollowingClinicDay} from "../useClinicDay.js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Receipt,
   DollarSign,
@@ -30,6 +31,11 @@ import BillingModal from "./BillingModal.jsx";
 export default function DailySalesPage({ db, setDb, me, go, say }) {
   const TODAY = today();
   const [selDate, setSelDate] = useFollowingClinicDay();
+  // The picker keeps what was typed; the report only moves once the date is valid.
+  const dateProblem = d => !d ? "Choose a report date." : d > TODAY ? "Reports can’t be dated in the future." : d < "2020-01-01" ? "Reports start from January 1, 2020." : "";
+  const [dateDraft, setDateDraft] = useState(selDate);
+  useEffect(() => { setDateDraft(selDate); }, [selDate]);
+  const dateError = dateProblem(dateDraft);
   const [showUndated, setShowUndated] = useState(false);
   const [search, setSearch] = useState("");
   const [methodFilter, setMethodFilter] = useState("all");
@@ -102,13 +108,14 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
             <Calendar size={16} color="var(--navy)" />
             <input
               type="date"
-              value={selDate}
+              value={dateDraft}
               min="2020-01-01" max={TODAY}
-              aria-label="Report date"
-              onChange={e => setSelDate(e.target.value)}
+              aria-label="Report date" aria-invalid={!!dateError} aria-describedby="sales-date-msg"
+              onChange={e => { setDateDraft(e.target.value); if (!dateProblem(e.target.value)) setSelDate(e.target.value); }}
               style={{ border: "none", background: "transparent", fontWeight: 700, fontSize: "calc(14px * var(--fs, 1))", color: "var(--navy)", outline: "none", cursor: "pointer" }}
             />
           </div>
+          <span id="sales-date-msg" className="err desk-date-msg" role="status" aria-live="polite">{dateError}</span>
 
           <button
             type="button"
@@ -264,16 +271,7 @@ export default function DailySalesPage({ db, setDb, me, go, say }) {
             </select>
           </div>
 
-          <div className="no-print" style={{ position: "relative", width: "min(100%, 300px)" }}>
-            <Search size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-            <input
-              type="search" aria-label="Search payments"
-              placeholder="Search owner, pet or reference"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ width: "100%", padding: "6px 10px 6px 32px", fontSize: "calc(12.5px * var(--fs, 1))", borderRadius: "6px", border: "1px solid #cbd5e1" }}
-            />
-          </div>
+          <div className="no-print desk-search-inline"><SearchField id="sales-search" label="Search payments" value={search} onChange={setSearch} placeholder="Owner, pet or reference" /></div>
         </div>
 
         {filteredPaid.length ? (

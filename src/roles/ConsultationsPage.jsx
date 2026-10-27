@@ -1,4 +1,5 @@
 import {visitFormType,visitFormTitle} from '../visitForm.js';
+import { SearchField } from "./owner/ui.jsx";
 import ClinicDialog from "../components/ClinicDialog.jsx";
 import DocumentHeader from "../components/DocumentHeader.jsx";
 import { PaginatedTable } from "../components/Pagination.jsx";
@@ -386,16 +387,7 @@ export default function ConsultationsPage({ db, setDb, me, go, say }) {
         gap: "12px",
         flexWrap: "wrap"
       }}>
-        <div style={{ position: "relative", flex: "1 1 260px", maxWidth: "420px" }}>
-          <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-          <input
-            type="search" aria-label="Search consultations"
-            placeholder="Search diagnosis, medication, patient, owner..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "8px 12px 8px 36px", fontSize: "calc(13px * var(--fs, 1))", borderRadius: "8px", border: "1px solid #cbd5e1" }}
-          />
-        </div>
+        <div className="desk-search-inline"><SearchField id="emr-search" label="Search consultations" value={search} onChange={setSearch} placeholder="Diagnosis, medication, patient or owner" /></div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "calc(12.5px * var(--fs, 1))", fontWeight: 600, color: "#475569", margin: 0 }}>

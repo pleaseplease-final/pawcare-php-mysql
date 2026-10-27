@@ -2,7 +2,7 @@ import { PaginatedList } from "../../components/Pagination.jsx";
 import { useState } from "react";
 import { scope, petName } from "../../lib.jsx";
 import { ownerBill, recentTransactions } from "../../ownerBilling.js";
-import { Modal } from "./ui.jsx";
+import { Modal, SearchField } from "./ui.jsx";
 
 const money = amount => new Intl.NumberFormat("en-PH", {style:"currency", currency:"PHP"}).format(amount);
 const dateLabel = date => date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {month:"short",day:"numeric",year:"numeric"}) : "Not recorded";
@@ -45,7 +45,7 @@ export default function OwnerBills({db, me, go}) {
     {go && <button className="btn sm ghost" onClick={() => go("prices")}>View clinic prices</button>}
     <div className="portal-metrics" aria-label="Payment summary">{["Unbilled","Unpaid","Paid"].map(status => <div key={status}><b>{all.filter(a => (a.billingStatus || "Unbilled") === status).length}</b><span>{status}</span></div>)}</div>
     <div className="ow-bill-filters">
-      <label>Search visits or charges<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pet, date, product or visit reference" /></label>
+      <SearchField id="bill-q" label="Search visits or charges" value={search} onChange={setSearch} placeholder="Pet, date, product or visit reference" result={`${list.length} visit${list.length === 1 ? "" : "s"} match`} />
       <label>Pet<select value={pet} onChange={e=>setPet(e.target.value)}><option value="">All my pets</option>{pets.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <label>Payment status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="">All statuses</option>{["Unbilled","Unpaid","Paid"].map(s=><option key={s}>{s}</option>)}</select></label>
     </div>

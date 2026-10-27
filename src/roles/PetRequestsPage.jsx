@@ -1,4 +1,5 @@
 import {registrationsWithoutVisit} from '../assistantWorkflow.js';
+import { SearchField } from "./owner/ui.jsx";
 import { PaginatedList } from "../components/Pagination.jsx";
 import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
@@ -60,15 +61,7 @@ export default function PetRequestsPage({ db, setDb, me, say, go }) {
             })}
           </div>
 
-          <div style={{ minWidth: "220px" }}>
-            <input
-              type="search" aria-label="Search pet registrations"
-              placeholder="Search pet, breed, owner..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ padding: "6px 12px", width: "100%", fontSize: "calc(13px * var(--fs, 1))" }}
-            />
-          </div>
+          <div className="desk-search-inline"><SearchField id="req-search" label="Search registrations" value={search} onChange={setSearch} placeholder="Pet, breed or owner" /></div>
         </div>
       </div>
 

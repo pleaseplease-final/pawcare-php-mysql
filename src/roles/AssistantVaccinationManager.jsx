@@ -1,4 +1,5 @@
 import LiveControl from '../components/LiveControl.jsx';
+import { SearchField } from "./owner/ui.jsx";
 import { PaginatedTable } from "../components/Pagination.jsx";
 import ReminderStatus from "./ReminderStatus.jsx";
 import { currentVaccinationDue } from "../vaccinationDue.js";
@@ -220,18 +221,7 @@ export default function AssistantVaccinationManager({ db, setDb, me, say }) {
               <span style={{ fontSize: "calc(11px * var(--fs, 1))", color: "#64748b" }}>{filteredPets.length} pets</span>
             </div>
 
-            <div style={{ position: "relative", marginBottom: "10px" }}>
-              <input
-                type="search"
-                placeholder="Search pet or owner..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{ padding: "6px 10px 6px 30px", width: "100%", fontSize: "calc(12.5px * var(--fs, 1))" }}
-              />
-              <span style={{ position: "absolute", left: "9px", top: "8px", color: "#94a3b8" }}>
-                <Search size={14} />
-              </span>
-            </div>
+            <SearchField id="vm-search" label="Find a patient" value={search} onChange={setSearch} placeholder="Pet or owner" />
 
             <div style={{ maxHeight: "320px", overflowY: "auto", display: "grid", gap: "6px" }}>
               {filteredPets.map(p => {

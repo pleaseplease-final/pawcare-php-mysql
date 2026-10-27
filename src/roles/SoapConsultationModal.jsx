@@ -1,4 +1,5 @@
 import {DEFAULT_DEWORMING_PRODUCTS,dewormingProductChoices} from '../dewormingProducts.js';
+import { SearchField } from "./owner/ui.jsx";
 import {careForProfile,elapsedDays,calculatedFollowUp} from '../visitCare.js';
 import {dewormingSchedule,availableDewormingLots,DEWORMING_REFERENCE} from '../dewormingSchedule.js';
 import {vaccineSchedule,VACCINE_BRANDS} from '../vaccineSchedule.js';
@@ -41,12 +42,7 @@ function NoteShortcuts({ field, label, options, value, onChange }) {
   const tooLong = !!choice && next.length > 10000;
   const hintId = `soap-${field}-shortcut-hint`;
   return <div className="soap-note-shortcuts">
-    <label className="soap-shortcut-search" htmlFor={`soap-${field}-search`}>Search {field} suggestions
-      <input id={`soap-${field}-search`} type="search" value={search} aria-describedby={hintId}
-        placeholder={`Search ${field} suggestions`}
-        onChange={e => { setSearch(e.target.value); setChoice(""); setAdded(false); }}
-        onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }} />
-    </label>
+    <div className="soap-shortcut-search"><SearchField id={`soap-${field}-search`} label={`Search ${field} suggestions`} value={search} onChange={v => { setSearch(v); setChoice(""); setAdded(false); }} placeholder={`Search ${field} suggestions`} result={`${matching.length} suggestion${matching.length === 1 ? "" : "s"} match`} /></div>
     <div className="soap-shortcut-controls">
       <label htmlFor={`soap-${field}-shortcut`}>{label} (optional)
         <select id={`soap-${field}-shortcut`} value={choice} aria-describedby={hintId} disabled={!matching.length} onChange={e => { setChoice(e.target.value); setAdded(false); }}>

@@ -1,4 +1,5 @@
 import ClinicDialog from '../components/ClinicDialog.jsx';
+import { SearchField } from "./owner/ui.jsx";
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
 import PetApprovalModal from './PetApprovalModal.jsx';
 import {useFormValidation} from '../components/useFormValidation.jsx';
@@ -116,10 +117,7 @@ export default function ExistingPatientCheckInModal({ db, setDb, me, onClose, on
 
         <form {...validation.formProps} onSubmit={handleSubmit}><fieldset disabled={busy} style={{border:0,padding:0,margin:0}}>
           {review.card}
-          <div className="sf-field">
-            <label htmlFor="exw-search">Search patient or owner</label>
-            <input id="exw-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Pet name, breed, owner or mobile number" />
-          </div>
+          <SearchField id="exw-search" label="Search patient or owner" value={search} onChange={setSearch} placeholder="Pet name, breed, owner or mobile number" />
 
           <div className="sf-field">
             <label htmlFor="exw-pet">Patient *</label>

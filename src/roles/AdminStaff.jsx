@@ -1,4 +1,6 @@
 import LiveControl from '../components/LiveControl.jsx';
+import { SearchField } from "./owner/ui.jsx";
+import "./assistant-desk.css";
 import AuditActivity from "../components/AuditActivity.jsx";
 import { AUDIT_TYPES, auditActivity } from "../auditActivity.js";
 import { PaginatedList, PaginatedTable } from "../components/Pagination.jsx";
@@ -141,17 +143,7 @@ export default function AdminStaff({ onInvite }) {
 
         {/* Filter Controls Bar */}
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", background: "#f8fafc", padding: "12px 16px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
-          <div style={{ position: "relative", flex: "1 1 240px" }}>
-            <Search size={15} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
-            <input
-              type="search"
-              aria-label="Search staff"
-              placeholder="Search by name, email, or doctor ID..."
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              style={{ width: "100%", paddingLeft: "34px", fontSize: "calc(13px * var(--fs, 1))" }}
-            />
-          </div>
+          <div className="desk-search-inline"><SearchField id="staff-search" label="Search staff" value={filter} onChange={setFilter} placeholder="Name, email or doctor ID" /></div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
             <span style={{ fontSize: "calc(12px * var(--fs, 1))", color: "#64748b", fontWeight: 600 }}>Role:</span>

@@ -1,4 +1,5 @@
 import ClinicDialog from '../components/ClinicDialog.jsx';
+import { SearchField } from "./owner/ui.jsx";
 import VisitCard from '../components/VisitCard.jsx';
 import {useUnsavedChanges} from '../components/useUnsavedChanges.jsx';
 import {chronologicalAppointments,upcomingAppointments,appointmentMinutes} from '../appointmentOrder.js';
@@ -792,13 +793,7 @@ export default function ClinicCalendar({ db, setDb, me, go, say }) {
           {/* Search & Filter Bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
             <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: "260px" }}>
-              <input
-                type="search"
-                placeholder="Search patient, owner, reason, or date..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{ width: "100%", maxWidth: "340px", padding: "7px 12px", fontSize: "calc(13px * var(--fs, 1))", borderRadius: "8px", border: "1.5px solid #cbd5e1" }}
-              />
+              <div className="desk-search-inline" style={{ flex: "1 1 260px", maxWidth: 380 }}><SearchField id="cal-search" label="Search appointments" value={search} onChange={setSearch} placeholder="Patient, owner, reason or date" /></div>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}

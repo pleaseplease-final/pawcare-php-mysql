@@ -45,8 +45,9 @@ export function useLive(init, validate) {
   }, count: Object.keys(errs).length, submitted: sub };
 }
 
-/* One field = label + control + live error / hint + optional character counter. */
-export function Field({ id, label, req, type = "text", value, onChange, onBlur, error, valid, hint, options = [], max, rows = 3, disabled, min, maxDate, step, autoComplete, readOnly, filter, filterMsg, inputMode, maxLen }) {
+/* One field = label + control + live error / hint + optional character counter.
+   The wrapper carries is-error / is-valid so the whole field (border, icon, message) reacts while typing. */
+export function Field({ id, label, req, type = "text", value, onChange, onBlur, error, valid, hint, options = [], max, rows = 3, disabled, min, maxDate, step, autoComplete, readOnly, filter, filterMsg, inputMode, maxLen, placeholder, emptyLabel = "" }) {
   const [blk, setBlk] = useState(""), tm = useRef();
   /* filter = keystroke guard: characters that don’t belong are removed as they are typed or pasted */
   const change = e => {
@@ -54,17 +55,49 @@ export function Field({ id, label, req, type = "text", value, onChange, onBlur, 
     if (filter && raw.replace(/\s/g, "") !== val.replace(/\s/g, "")) { setBlk(filterMsg || "That character isn’t allowed here"); clearTimeout(tm.current); tm.current = setTimeout(() => setBlk(""), 2200); } else if (blk) setBlk("");
     onChange && onChange(val);
   };
-  const common = { id, name:id, required:!!req, value: value ?? "", onChange: change, onBlur, disabled, readOnly, "aria-invalid": !!error, "aria-describedby": `${id}-m`, className: valid && !error ? "ow-valid" : "" };
-  const len = String(value ?? "").length;
+  useEffect(() => () => clearTimeout(tm.current), []);
+  const bad = !!(error || blk), good = !bad && !!valid && !readOnly;
+  const common = { id, name:id, required:!!req, value: value ?? "", onChange: change, onBlur, disabled, readOnly, placeholder, "aria-invalid": bad, "aria-describedby": `${id}-m`, className: good ? "ow-valid" : "" };
+  const len = String(value ?? "").length, limit = type === "textarea" ? max : maxLen;
   let ctl;
-  if (type === "select") ctl = <select {...common}><option value="" />{options.map(([a, b, dis]) => <option key={a} value={a} disabled={dis}>{b}</option>)}</select>;
+  if (type === "select") ctl = <select {...common}><option value="">{emptyLabel}</option>{options.map(([a, b, dis]) => <option key={a} value={a} disabled={dis}>{b}</option>)}</select>;
   else if (type === "textarea") ctl = <textarea {...common} rows={rows} />;
   else ctl = <input {...common} type={type} min={min} max={maxDate} step={step} autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLen} />;
   return (
-    <div className="fld">
-      <label htmlFor={id}>{label}{req && <i> *</i>}{max && type === "textarea" && <span className={`ow-count${len > max ? " over" : ""}`}>{len}/{max}</span>}</label>
+    <div className={`fld${bad ? " is-error" : good ? " is-valid" : ""}${readOnly ? " is-readonly" : ""}`}>
+      <label htmlFor={id}>{label}{req && <i> *</i>}{limit && (type === "textarea" || len > 0) && <span className={`ow-count${len > limit ? " over" : len >= limit * 0.9 ? " near" : ""}`}>{len}/{limit}</span>}</label>
       {ctl}
-      <span id={`${id}-m`} className={error || blk ? "err" : "ow-hint"} aria-live="polite">{blk || error || hint || ""}</span>
+      <span id={`${id}-m`} className={bad ? "err" : "ow-hint"} aria-live="polite">{blk || error || hint || ""}</span>
+    </div>
+  );
+}
+
+/* Characters a search box accepts. Anything else is dropped as it is typed, with a short message. */
+export const searchText = s => tidy(s.replace(/[^A-Za-zÀ-ÿ0-9 .,'’#&/@:()+_\-]/g, ""));
+
+/* Search box with live checks: typing guard, length limit, counter, clear button and a result hint. */
+export function SearchField({ id, label, value, onChange, placeholder, max = 60, hint, result }) {
+  const [blk, setBlk] = useState(""), tm = useRef(), ref = useRef();
+  useEffect(() => () => clearTimeout(tm.current), []);
+  const change = e => {
+    const raw = e.target.value, val = searchText(raw).slice(0, max);
+    if (raw.replace(/\s/g, "") !== val.replace(/\s/g, "")) {
+      setBlk(searchText(raw).length > max ? `Keep your search under ${max} characters` : "Only letters, numbers and basic punctuation can be searched");
+      clearTimeout(tm.current); tm.current = setTimeout(() => setBlk(""), 2400);
+    } else if (blk) setBlk("");
+    onChange(val);
+  };
+  const clear = () => { onChange(""); setBlk(""); ref.current?.focus(); };
+  const len = value.length, bad = !!blk;
+  return (
+    <div className={`fld ow-search${bad ? " is-error" : ""}`}>
+      <label htmlFor={id}>{label}{len > 0 && <span className={`ow-count${len >= max ? " over" : len >= max * 0.9 ? " near" : ""}`}>{len}/{max}</span>}</label>
+      <div className="ow-search-box">
+        <Icon n="search" size={17} />
+        <input ref={ref} id={id} name={id} type="text" inputMode="search" autoComplete="off" value={value} onChange={change} onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }} placeholder={placeholder} maxLength={max + 20} aria-invalid={bad} aria-describedby={`${id}-m`} />
+        {len > 0 && <button type="button" className="ow-search-x" onClick={clear} aria-label={`Clear ${label.toLowerCase()}`}>×</button>}
+      </div>
+      <span id={`${id}-m`} className={bad ? "err" : "ow-hint"} aria-live="polite">{blk || (len > 0 && result) || hint || ""}</span>
     </div>
   );
 }

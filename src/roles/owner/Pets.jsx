@@ -432,12 +432,12 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
         {review.card}
         <p className="ow-note info">Save your pet’s details to get started. Your pet will appear as Pending verification, and you can request an appointment immediately.</p>
 
-        {v.species && GUIDANCE_BY_SPECIES[v.species] && (
-          <div className="ow-note" style={{ background: "#eff6ff", borderColor: "#93c5fd", color: "#1e3a8a", fontSize: "0.83rem", lineHeight: 1.45, marginBottom: 14 }}>
-            {GUIDANCE_BY_SPECIES[v.species]}
-          </div>
-        )}
+        {v.species && GUIDANCE_BY_SPECIES[v.species] && <p className="ow-note info ow-guide"><Icon n="info" size={16} />{GUIDANCE_BY_SPECIES[v.species]}</p>}
 
+        {(() => {
+          const need = ["name", "species", "sex", "birth", "weight", "neutered"], done = need.filter(k => String(v[k] ?? "").trim() && !f.errs[k]).length;
+          return <div className="ow-progress" role="status" aria-live="polite"><div><b>{done === need.length ? "All required details are filled in" : `${done} of ${need.length} required details complete`}</b><span>{done === need.length ? "Review your request when you are ready." : "Fields turn green as you finish them."}</span></div><i style={{ "--p": `${(done / need.length) * 100}%` }} aria-hidden="true" /></div>;
+        })()}
         <fieldset disabled={saving} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="op-sec">
           <h4>Pet picture (optional)</h4>
@@ -445,6 +445,7 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
           <p className="ow-hint">The picture is saved when you send this request and stays with the approved pet.</p>
         </div>
         <div className="op-2">
+          <h4 className="ow-formsec full">About your pet</h4>
           <Field id="pn" label="Pet name" req value={v.name} filter={petText} filterMsg="Letters, numbers and . ' - only" maxLen={30} onChange={x => f.set("name", x)} onBlur={() => f.blur("name")} error={f.show("name")} valid={f.ok("name")} />
           
           <Field id="ps" label="Species (Animal Classification)" req type="select" value={v.species} onChange={handleSpeciesChange} onBlur={() => f.blur("species")} options={SPECIES.map(s => [s, s])} error={f.show("species")} valid={f.ok("species")} hint="Mandatory clinical classification (VCMS Protocols v2.0)" />
@@ -474,20 +475,17 @@ export function PetFormModal({ db, setDb, me, say, editing, onClose, requiredSet
           <div>
             <Field id="pd" label="Birth date (yesterday or earlier)" req type="date" min={OLDEST} maxDate={YESTERDAY} value={v.birth} onChange={x => f.set("birth", x)} onBlur={() => f.blur("birth")} error={f.show("birth")} valid={f.ok("birth")} hint="Birth date cannot be today or in the future" />
             {petCalculatedAge && (
-              <div style={{ marginTop: -8, marginBottom: 10, fontSize: "0.83rem", color: "#0b3a5b", fontWeight: 700 }}>
-                Age: {petCalculatedAge}
-              </div>
+              <p className="ow-agechip"><Icon n="clock" size={14} />Age: {petCalculatedAge}</p>
             )}
           </div>
 
           <Field id="pw" label="Reported registration weight (kg)" req value={v.weight} filter={onlyDecimal} filterMsg="Numbers only, with one decimal point" inputMode="decimal" onChange={x => f.set("weight", x)} onBlur={() => f.blur("weight")} error={f.show("weight")} valid={f.ok("weight")} hint="For example 4.5" />
 
+          <h4 className="ow-formsec full">Health &amp; appearance</h4>
           <div>
             <Field id="pt" label="Spayed or neutered?" req type="select" value={v.neutered} onChange={x => f.set("neutered", x)} onBlur={() => f.blur("neutered")} options={NEUTERED.map(s => [s, s])} error={f.show("neutered")} valid={f.ok("neutered")} />
             {isOlderThanSixMonths && v.neutered === "No" && (
-              <div style={{ marginTop: -8, marginBottom: 10, fontSize: "0.8rem", color: "#b45309", lineHeight: 1.3 }}>
-                Tip: At {petCalculatedAge}, spaying/neutering is strongly recommended for reproductive health and behavior.
-              </div>
+              <p className="ow-tip"><Icon n="info" size={14} />At {petCalculatedAge}, spaying/neutering is strongly recommended for reproductive health and behavior.</p>
             )}
           </div>
 
