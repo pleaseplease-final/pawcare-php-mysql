@@ -22,6 +22,14 @@ try {
 
     echo "1. Applying Schema DDL (pawcare_mysql.sql)...\n";
     $schemaSql = file_get_contents($schemaFile);
+    // The schema file starts by dropping every table so it can rebuild from scratch. That would erase real data,
+    // so those lines are removed unless you ask for a reset on purpose:  php scripts/init_mysql.php --reset
+    if (in_array('--reset', $argv ?? [], true)) {
+        echo "   --reset: existing tables will be DROPPED and rebuilt. All data in them is lost.\n";
+    } else {
+        $schemaSql = preg_replace('/^\s*DROP TABLE IF EXISTS [^;]+;\s*$/mi', '', $schemaSql);
+        echo "   Existing tables and data are kept (only missing tables are created).\n";
+    }
     $pdo->exec($schemaSql);
     echo "   Schema applied successfully!\n";
 

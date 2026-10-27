@@ -9,12 +9,15 @@
 require_once __DIR__ . '/dashboard_auth.php'; // stops here unless a staff member is signed in
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/rules.php';
+require_once __DIR__ . '/ui_shared.php';
 
 $pdo = Database::getConnection();
 require_once __DIR__ . '/config/schema.php';
 require_once __DIR__ . '/config/reasons.php';
 require_once __DIR__ . '/config/reminders.php';
 Schema::ensure($pdo);
+require_once __DIR__ . '/console_access.php';
+require_once __DIR__ . '/console_clinical.php';
 $role = $currentUser['role'];
 
 // Who may do what. Mirrors the permission table in the README.
@@ -32,7 +35,6 @@ function can(string $page, string $op): bool {
     global $role;
     return str_contains(PERMISSIONS[$page][$role] ?? '', $op);
 }
-function e(mixed $v): string { return dashboardEscape((string) $v); }
 function audit(string $action): void {
     global $pdo, $currentUser;
     $pdo->prepare('INSERT INTO audit_logs (id, user_name, user_role, action) VALUES (?, ?, ?, ?)')
@@ -46,7 +48,7 @@ function like(string $q): string { return '%' . addcslashes($q, '%_\\') . '%'; }
 
 $pages = array_keys(array_filter(PERMISSIONS, fn($roles) => isset($roles[$role])));
 $page = in_array($_GET['page'] ?? 'owners', $pages, true) ? ($_GET['page'] ?? 'owners') : $pages[0];
-$action = in_array($_GET['do'] ?? 'list', ['list', 'new', 'edit', 'access'], true) ? ($_GET['do'] ?? 'list') : 'list';
+$action = in_array($_GET['do'] ?? 'list', array_merge(['list', 'new', 'edit', 'access'], CLINICAL_VIEWS), true) ? ($_GET['do'] ?? 'list') : 'list';
 if ($page === 'account') $action = 'edit';
 $id = (string) ($_GET['id'] ?? '');
 $errors = [];
@@ -74,6 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'logou
             audit("Ran vaccination reminders: {$counts['sent']} sent, {$counts['failed']} failed");
             flash('ok', "Reminder run finished: {$counts['sent']} sent, {$counts['failed']} failed, {$counts['checked']} boosters checked.");
             back('reminders');
+        }
+        if (in_array($op, CLINICAL_OPS, true) && $page === 'appointments') {
+            $errors = clinicalRun($op, $id, $_POST);
+            if (isset($errors['_blocked'])) { flash('err', $errors['_blocked']); back('appointments'); }
+            if (!$errors) { flash('ok', CLINICAL_DONE[$op]); back('appointments', $op === 'checkout' ? '&do=receipt&id=' . urlencode($id) : ''); }
+            http_response_code(422);
+            $action = $op;
+            goto render;
         }
         if ($op === 'delete') {
             if (!can($page, 'd')) { http_response_code(403); flash('err', 'Your role cannot delete this record.'); back($page); }
@@ -248,31 +258,12 @@ function deleteRecord(string $page, string $id): array {
 
 /* ------------------------------------------------------------------ views ------------------------------------------------------------------ */
 render:
-require_once __DIR__ . '/console_access.php';
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
 $titles = ['owners' => 'Owners', 'pets' => 'Patients', 'appointments' => 'Appointments', 'users' => 'User accounts', 'catalog' => 'Services & products', 'reminders' => 'Reminders', 'account' => 'My account'];
 
-function field(string $name, string $label, array $values, array $errors, array $attrs = [], string $type = 'text', array $options = []): void {
-    $value = (string) ($values[$name] ?? '');
-    $error = $errors[$name] ?? '';
-    $id = 'f_' . $name;
-    $attr = '';
-    foreach ($attrs as $k => $v) $attr .= $v === true ? " {$k}" : ' ' . $k . '="' . e($v) . '"';
-    echo '<div class="fld' . ($error ? ' bad' : '') . '"><label for="' . $id . '">' . e($label) . (isset($attrs['required']) ? ' <i>*</i>' : '') . '</label>';
-    if ($type === 'select') {
-        echo '<select id="' . $id . '" name="' . e($name) . '"' . $attr . '><option value="">Choose…</option>';
-        foreach ($options as $val => $text) echo '<option value="' . e($val) . '"' . ((string) $val === $value ? ' selected' : '') . '>' . e($text) . '</option>';
-        echo '</select>';
-    } elseif ($type === 'textarea') {
-        echo '<textarea id="' . $id . '" name="' . e($name) . '" rows="3"' . $attr . '>' . e($value) . '</textarea>';
-    } else {
-        echo '<input id="' . $id . '" name="' . e($name) . '" type="' . e($type) . '" value="' . e($type === 'password' ? '' : $value) . '"' . $attr . '>';
-    }
-    echo '<span class="msg" role="status" aria-live="polite">' . e($error) . '</span></div>';
-}
 function form(string $page, ?string $id, array $values, array $errors): void {
-    global $pdo;
+    global $pdo, $currentUser;
     $creating = $id === null;
     echo '<form method="POST" action="console.php?page=' . e($page) . '" class="card form" novalidate data-live>';
     echo '<input type="hidden" name="csrf" value="' . e(dashboardCsrf()) . '"><input type="hidden" name="page" value="' . e($page) . '"><input type="hidden" name="id" value="' . e($id ?? '') . '"><input type="hidden" name="op" value="save">';
@@ -363,7 +354,7 @@ function listView(string $page): void {
             $count = 'SELECT COUNT(*) FROM pets p JOIN owners o ON o.id = p.owner_id'; $order = 'p.name'; $cols = ['name' => 'Name', 'species' => 'Species', 'breed' => 'Breed', 'sex' => 'Sex', 'birth' => 'Born', 'weight' => 'Kg', 'owner' => 'Owner'];
             break;
         case 'appointments':
-            $select = 'SELECT a.id, a.date, a.time, a.reason, a.status, a.amount, p.name AS pet, o.name AS owner FROM appointments a JOIN pets p ON p.id = a.pet_id JOIN owners o ON o.id = p.owner_id';
+            $select = 'SELECT a.id, a.date, a.time, a.reason, a.status, a.billing_status, a.amount, p.name AS pet, o.name AS owner FROM appointments a JOIN pets p ON p.id = a.pet_id JOIN owners o ON o.id = p.owner_id';
             if ($q !== '') { $where[] = '(p.name LIKE ? OR o.name LIKE ? OR a.reason LIKE ?)'; array_push($params, like($q), like($q), like($q)); }
             if (in_array($filter, Rules::APPT_STATUSES, true)) { $where[] = 'a.status = ?'; $params[] = $filter; }
             if ($from !== '' && Validator::date($from, 'date', false, '2000-01-01') === '') { $where[] = 'a.date >= ?'; $params[] = $from; }
@@ -426,6 +417,8 @@ function listView(string $page): void {
             echo '<td data-label="' . e($label) . '">' . e($cell) . '</td>';
         }
         echo '<td class="act">';
+        if ($page === 'appointments') echo clinicalActions($r);
+        if ($page === 'pets') echo '<a class="btn sm ghost" href="console.php?page=pets&do=view&id=' . urlencode($r['id']) . '">Record</a> ';
         if (can($page, 'u')) echo '<a class="btn sm ghost" href="console.php?page=' . e($page) . '&do=edit&id=' . urlencode($r['id']) . '">Edit</a> ';
         if ($page === 'users' && can('users', 'a') && (int) $r['is_active'] && !empty($r['is_locked'])) echo '<a class="btn sm ghost" href="console.php?page=users&do=access&act=unlock&id=' . urlencode($r['id']) . '">Unlock</a> ';
         if ($page === 'users' && can('users', 'a')) {
@@ -476,47 +469,7 @@ function postButton(string $page, string $id, string $op, string $label, string 
   <meta name="robots" content="noindex">
   <title>PawCare console · <?= e($titles[$page]) ?></title>
   <style>
-    :root { --blue:#2563eb; --navy:#1e3a8a; --line:#e3e9f7; --bg:#f4f7ff; --bad:#c2362b; --ok:#15803d; }
-    * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-    body { background:var(--bg); color:#1e293b; }
-    header { background:linear-gradient(135deg,#2563eb,#1e3a8a); color:#fff; padding:14px 24px; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:center; }
-    header nav { display:flex; gap:6px; flex-wrap:wrap; }
-    header nav a { color:#dbe7ff; text-decoration:none; padding:8px 14px; border-radius:99px; font-weight:600; font-size:14px; }
-    header nav a.on, header nav a:hover { background:#ffe28a; color:#1e3a8a; }
-    header form { display:inline; }
-    main { max-width:1200px; margin:22px auto; padding:0 16px 40px; display:grid; gap:16px; }
-    h1 { font-size:22px; color:var(--navy); }
-    .card { background:#fff; border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 2px 10px rgba(30,58,138,.06); }
-    .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-    .filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
-    .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:4px 18px; }
-    .fld { display:flex; flex-direction:column; gap:5px; margin-bottom:10px; }
-    .fld label { font-size:13px; font-weight:600; color:#33466f; } .fld i { color:var(--bad); font-style:normal; }
-    input, select, textarea { padding:10px 12px; border:2px solid #dbe4f7; border-radius:12px; font-size:14px; background:#f6f9ff; width:100%; }
-    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--blue); background:#fff; box-shadow:0 0 0 4px rgba(37,99,235,.14); }
-    .fld.bad input, .fld.bad select, .fld.bad textarea { border-color:#f3a8a0; background:#fff6f5; }
-    .fld.good input, .fld.good select, .fld.good textarea { border-color:#86efac; background:#f0fdf4; }
-    .msg { min-height:1.2em; font-size:12.5px; color:var(--bad); font-weight:600; }
-    .btn { display:inline-block; background:var(--blue); color:#fff; border:0; border-radius:99px; padding:9px 18px; font-weight:700; font-size:14px; text-decoration:none; cursor:pointer; }
-    .btn.ghost { background:#eaf1ff; color:var(--navy); } .btn.danger { background:#fdeceb; color:#b42318; } .btn.sm { padding:6px 12px; font-size:13px; }
-    .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:8px; }
-    .flash { padding:10px 14px; border-radius:12px; font-weight:600; margin-bottom:12px; } .flash.ok { background:#dcfce7; color:#14532d; } .flash.err { background:#fef2f2; color:#b91c1c; }
-    .tw { overflow-x:auto; } table { width:100%; border-collapse:collapse; } th { text-align:left; background:#f3f6ff; color:#4b5b82; font-size:13px; padding:10px 12px; }
-    td { padding:10px 12px; border-top:1px solid #edf1fa; font-size:14px; vertical-align:middle; } td.act { white-space:nowrap; text-align:right; } form.inline { display:inline; }
-    .chips { display:flex; flex-wrap:wrap; gap:8px; }
-    .chip { display:inline-flex; align-items:center; gap:8px; padding:7px 14px; border-radius:99px; background:#fff; border:1px solid var(--line); color:#33466f; font-weight:600; font-size:13.5px; text-decoration:none; }
-    .chip b { background:#e4ebfb; color:#1e3a8a; border-radius:99px; padding:1px 8px; font-size:12px; }
-    .chip.on { background:#ffe28a; border-color:#ffd24d; color:#1e3a8a; } .chip.on b { background:#fff; }
-    .steps { display:flex; gap:8px; margin-bottom:14px; } .steps span { padding:5px 12px; border-radius:99px; background:#eef1f8; color:#64748b; font-size:13px; font-weight:600; } .steps .on { background:var(--blue); color:#fff; }
-    .sub { color:#64748b; margin-bottom:12px; } .reasonline { margin:12px 0; padding:10px 14px; border-radius:12px; background:#eef3ff; } .effects { margin:8px 0 14px 18px; color:#33466f; line-height:1.7; }
-    .you { color:#64748b; font-size:13px; padding:0 8px; } code { background:#eef1f8; padding:1px 6px; border-radius:6px; font-size:13px; }
-    .pill { padding:5px 12px; border-radius:99px; font-weight:700; font-size:13px; } .pill.ok { background:#dcfce7; color:#15803d; } .pill.warn { background:#fef3c7; color:#b45309; }
-    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:14px 0; } .metrics>div { border:1px solid var(--line); border-radius:16px; padding:14px 16px; background:#f8faff; }
-    .metrics span { display:block; color:#64748b; font-weight:600; font-size:13px; } .metrics b { display:block; font-size:28px; color:var(--navy); margin:4px 0; } .metrics b.small { font-size:17px; } .metrics small { color:#64748b; }
-    .metrics .ok { background:#f0fdf4; border-color:#bbf0cc; } .metrics .warn { background:#fffbeb; border-color:#f1dd8a; } .providers { margin:8px 0 14px; color:#475569; } .okt { color:var(--ok); } .badt { color:var(--bad); }
-    .filters .fld { margin-bottom:0; } .filters { align-items:flex-end; }
-    .pager { display:flex; gap:12px; align-items:center; justify-content:center; margin-top:14px; } .empty { color:#64748b; padding:20px; text-align:center; }
-    @media (max-width:700px) { thead { display:none; } tr { display:block; border:1px solid var(--line); border-radius:14px; margin-bottom:10px; } td { display:flex; justify-content:space-between; gap:10px; border:0; } td::before { content:attr(data-label); font-weight:700; color:#64748b; } td.act { justify-content:flex-end; } }
+<?php uiStyles(); ?>
   </style>
 </head>
 <body>
@@ -540,6 +493,8 @@ function postButton(string $page, string $id, string $op, string $label, string 
       $flow = $flowView ?? accessFlow($page, $id, $act, [], 'back');
       if (($flow['state'] ?? '') === 'blocked') echo '<p class="flash err" role="alert">' . e($flow['message']) . '</p><p><a class="btn ghost" href="console.php?page=' . e($page) . '">Back to the list</a></p>';
       else accessView($page, $id, $act, $flow);
+  } elseif (in_array($action, CLINICAL_VIEWS, true) && $page === ($action === 'view' ? 'pets' : 'appointments')) {
+      clinicalView($action, $id, $old, $errors);
   } elseif ($action === 'new' && can($page, 'c')) {
       form($page, null, $old, $errors);
   } elseif ($action === 'edit' && can($page, 'u')) {
@@ -553,48 +508,7 @@ function postButton(string $page, string $id, string $op, string $label, string 
   ?>
 </main>
 <script>
-// Inline validation while typing: uses each field's own rules (required, length, pattern, type) plus a few clinic rules.
-(function () {
-  var rules = {
-    name: [/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'\-]*$/, "Use letters, spaces, . ' and - only."],
-    petname: [/^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .'\-]*$/, "Use letters, numbers and . ' - only."],
-    phone: [/^(09|\+639)\d{9}$/, 'Use 09XXXXXXXXX or +639XXXXXXXXX.'],
-    email: [/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Enter a valid email address.'],
-    money: [/^\d+(\.\d{1,2})?$/, 'Use numbers only, with at most 2 decimal places.'],
-    password: [/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{12,72}$/, 'At least 12 characters with upper, lower, a number and a symbol; no spaces.']
-  };
-  function check(el) {
-    var box = el.closest('.fld'), msg = box.querySelector('.msg'), v = el.value.trim(), text = '';
-    var cond = el.getAttribute('data-required-if'), needed = el.hasAttribute('required') || (cond && document.getElementById(cond.split('=')[0]) && document.getElementById(cond.split('=')[0]).value === cond.split('=')[1]);
-    if (needed && v === '') text = cond && !el.hasAttribute('required') ? 'Explain the reason (required for Other).' : 'This field is required.';
-    else if (v !== '') {
-      var rule = rules[el.getAttribute('data-rule')];
-      if (rule && !rule[0].test(el.getAttribute('data-rule') === 'phone' ? v.replace(/[\s-]/g, '') : v)) text = rule[1];
-      else if (el.minLength > 0 && v.length < el.minLength) text = 'Use at least ' + el.minLength + ' characters.';
-      else if (el.validity && !el.validity.valid) text = el.validationMessage;
-      var differs = el.getAttribute('data-differs'), match = el.getAttribute('data-match'), who = (el.getAttribute('data-identity') || '').split('@')[0].toLowerCase();
-      if (!text && differs && document.getElementById(differs).value === v) text = 'New password must be different from your current password.';
-      if (!text && who.length >= 4 && el.getAttribute('data-rule') === 'password' && v.toLowerCase().indexOf(who) !== -1) text = 'Do not include your email name in the password.';
-      if (!text && match && document.getElementById(match).value !== v) text = 'Passwords do not match.';
-    }
-    msg.textContent = text;
-    box.classList.toggle('bad', text !== '');
-    box.classList.toggle('good', text === '' && v !== '');
-    return text === '';
-  }
-  document.querySelectorAll('form[data-live]').forEach(function (form) {
-    var fields = form.querySelectorAll('input:not([type=hidden]), select, textarea');
-    fields.forEach(function (el) {
-      el.addEventListener('input', function () { check(el); fields.forEach(function (other) { if (other !== el && other.value !== '' && (other.getAttribute('data-match') || other.getAttribute('data-differs') || other.getAttribute('data-required-if'))) check(other); }); });
-      el.addEventListener('blur', function () { check(el); });
-    });
-    form.addEventListener('submit', function (event) {
-      var first = null;
-      fields.forEach(function (el) { if (!check(el) && !first) first = el; });
-      if (first) { event.preventDefault(); first.focus(); }
-    });
-  });
-})();
+<?php uiScript(); ?>
 </script>
 </body>
 </html>

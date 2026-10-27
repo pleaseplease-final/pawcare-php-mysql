@@ -54,6 +54,9 @@ check('API blocked when signed out', $r['status'] === 401);
 $r = $anon->req('POST', '/console.php?page=owners', ['op' => 'delete', 'id' => 'x', 'page' => 'owners']);
 check('anonymous POST cannot delete', $r['status'] === 401);
 
+$r = $anon->req('GET', '/');
+check('the root address opens the console (PHP system)', $r['status'] === 302 && str_contains($r['head'], 'console.php'), $r['head']);
+
 // ---------- 2. Login messages and lockout after 3 attempts
 $r = $anon->req('POST', '/api/auth/login', ['email' => 'nobody@example.test', 'password' => 'Whatever1!'], true);
 check('unregistered email: 404 + create account message', $r['status'] === 404 && ($r['json']['unregistered'] ?? false) === true && str_contains($r['json']['error'] ?? '', 'create an account'), $r['body']);
@@ -216,7 +219,7 @@ $r = $admin->post('users', ['role' => 'vet', 'password' => '', 'id' => 'admin1',
 check('staff: the only admin cannot be demoted', $r['status'] === 422 && str_contains($r['body'], 'cannot change your own role') || str_contains($r['body'], 'at least one administrator'));
 $t = $admin->csrf('/console.php?page=users');
 $r = $admin->req('POST', '/console.php?page=users', ['csrf' => $t, 'page' => 'users', 'id' => 'admin1', 'op' => 'delete'], false, true);
-check('staff: you cannot delete your own account', str_contains($r['body'], 'cannot delete your own'));
+check('accounts: there is no hard delete, only a reasoned deactivation', str_contains($r['body'], 'cannot delete'));
 
 // ---------- 5. Role-based access: veterinarian
 $vet = new Client();
@@ -233,6 +236,129 @@ $r = $vet->req('POST', '/console.php?page=pets', ['csrf' => $t, 'page' => 'pets'
 check('vet: delete is refused', str_contains($r['body'], 'cannot delete'));
 $r = $vet->req('GET', '/api/reports/sales');
 check('vet: can read reports API', $r['status'] === 200 || $r['status'] === 401 || $r['status'] === 500);
+
+// ---------- 5a. Deactivate, reactivate and unlock: choose a reason, review, confirm (soft delete)
+$ninaId = (string) $pdo->query("SELECT id FROM users WHERE email='nina@example.test'")->fetchColumn();
+$ninaPw = 'Ok#Strong9xyz';
+$nina = new Client();
+$r = $nina->req('POST', '/api/auth/login', ['email' => 'nina@example.test', 'password' => $ninaPw], true);
+check('access: the account signs in before it is deactivated', $r['status'] === 200);
+check('access: and has an open session', $nina->req('GET', '/api/auth/me')['status'] === 200);
+$list = $admin->req('GET', '/console.php?page=users');
+check('access: status chips show All, Active, Deactivated and Locked with counts', str_contains($list['body'], 'Deactivated <b>0</b>') && str_contains($list['body'], 'Active <b>') && str_contains($list['body'], 'Locked <b>0</b>'), substr($list['body'], strpos($list['body'], 'class="chips"') ?: 0, 400));
+check('access: the list offers Deactivate (and no Delete) for another account', str_contains($list['body'], 'act=deactivate&id=' . $ninaId) && !str_contains($list['body'], 'value="delete"'));
+$form = $admin->req('GET', '/console.php?page=users&do=access&act=deactivate&id=' . $ninaId);
+check('access: step 1 shows the reason dropdown', $form['status'] === 200 && str_contains($form['body'], 'Resigned or left the clinic') && str_contains($form['body'], 'Security concern'));
+$tok = $admin->csrf('/console.php?page=users');
+$flow = fn(array $d) => $admin->req('POST', '/console.php?page=users', $d + ['csrf' => $tok, 'page' => 'users', 'id' => $ninaId, 'act' => 'deactivate', 'rev' => '0']);
+$r = $flow(['op' => 'review', 'reason_code' => '', 'reason_note' => '']);
+check('access: no reason chosen is declined (422)', $r['status'] === 422 && str_contains($r['body'], 'Choose a reason from the list'));
+$r = $flow(['op' => 'review', 'reason_code' => 'not-a-reason', 'reason_note' => '']);
+check('access: a reason that is not on the list is declined', $r['status'] === 422);
+$r = $flow(['op' => 'review', 'reason_code' => 'other', 'reason_note' => '123']);
+check('access: "Other" needs a real explanation', $r['status'] === 422 && str_contains($r['body'], 'at least 5 characters'));
+$r = $flow(['op' => 'review', 'reason_code' => 'left_clinic', 'reason_note' => '']);
+check('access: step 2 reviews the changes before anything is saved', $r['status'] === 200 && str_contains($r['body'], 'Review the changes') && str_contains($r['body'], 'Deactivated') && str_contains($r['body'], 'Signed out') && str_contains($r['body'], 'Confirm deactivation'));
+check('access: nothing changed at the review step', (int) $pdo->query("SELECT is_active FROM users WHERE id='{$ninaId}'")->fetchColumn() === 1);
+$r = $flow(['op' => 'confirm', 'reason_code' => 'left_clinic', 'reason_note' => '', 'rev' => '7']);
+$page = $admin->req('GET', '/console.php?page=users');
+check('access: a stale form is refused and nothing changes', (int) $pdo->query("SELECT is_active FROM users WHERE id='{$ninaId}'")->fetchColumn() === 1);
+$r = $flow(['op' => 'confirm', 'reason_code' => 'left_clinic', 'reason_note' => 'Moved abroad', 'rev' => '0']);
+check('access: confirming deactivates the account', $r['status'] === 302 && (int) $pdo->query("SELECT is_active FROM users WHERE id='{$ninaId}'")->fetchColumn() === 0);
+check('access: the reason and revision are saved', str_contains((string) $pdo->query("SELECT access_reason FROM users WHERE id='{$ninaId}'")->fetchColumn(), 'Resigned or left the clinic: Moved abroad') && (int) $pdo->query("SELECT access_revision FROM users WHERE id='{$ninaId}'")->fetchColumn() === 1);
+check('access: the open session was ended (they are logged out)', $nina->req('GET', '/api/auth/me')['status'] === 401 && (int) $pdo->query("SELECT COUNT(*) FROM sessions WHERE user_id='{$ninaId}'")->fetchColumn() === 0);
+$r = (new Client())->req('POST', '/api/auth/login', ['email' => 'nina@example.test', 'password' => $ninaPw], true);
+check('access: a deactivated account cannot sign in', $r['status'] === 403 && ($r['json']['deactivated'] ?? false), $r['body']);
+$r = (new Client())->req('POST', '/api/auth/forgot/options', ['email' => 'nina@example.test'], true);
+check('access: and cannot use password recovery to get back in', $r['status'] === 403 && ($r['json']['deactivated'] ?? false), $r['body']);
+check('access: the audit trail records who, why and the revoked sessions', (int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE action LIKE 'Deactivate account {$ninaId}%reason: Resigned or left the clinic: Moved abroad%Sessions revoked%'")->fetchColumn() === 1);
+$list = $admin->req('GET', '/console.php?page=users&status=deactivated');
+check('access: the Deactivated chip lists only deactivated accounts', str_contains($list['body'], 'nina@example.test') && !str_contains($list['body'], 'asst1@example.test') && str_contains($list['body'], 'Deactivated <b>1</b>'));
+$list = $admin->req('GET', '/console.php?page=users&status=active');
+check('access: the Active chip hides them', !str_contains($list['body'], 'nina@example.test'));
+$r = $admin->req('GET', '/console.php?page=users&do=access&act=deactivate&id=admin1');
+check('access: you cannot deactivate yourself', str_contains($r['body'], 'cannot change your own access'));
+$r = $admin->req('GET', '/console.php?page=users&do=access&act=deactivate&id=' . $ninaId);
+check('access: an already deactivated account cannot be deactivated again', str_contains($r['body'], 'already deactivated'));
+$flowR = fn(array $d) => $admin->req('POST', '/console.php?page=users', $d + ['csrf' => $tok, 'page' => 'users', 'id' => $ninaId, 'act' => 'reactivate', 'rev' => '1']);
+$flowR(['op' => 'confirm', 'reason_code' => 'returned', 'reason_note' => '']);
+check('access: reactivation restores sign-in', (int) $pdo->query("SELECT is_active FROM users WHERE id='{$ninaId}'")->fetchColumn() === 1 && (new Client())->req('POST', '/api/auth/login', ['email' => 'nina@example.test', 'password' => $ninaPw], true)['status'] === 200);
+$pdo->exec("UPDATE users SET is_locked = 1, failed_login_attempts = 3 WHERE id='{$ninaId}'");
+$list = $admin->req('GET', '/console.php?page=users&status=locked');
+check('access: the Locked chip lists locked accounts', str_contains($list['body'], 'nina@example.test'));
+$rev = (int) $pdo->query("SELECT access_revision FROM users WHERE id='{$ninaId}'")->fetchColumn();
+$admin->req('POST', '/console.php?page=users', ['csrf' => $tok, 'page' => 'users', 'id' => $ninaId, 'act' => 'unlock', 'rev' => (string) $rev, 'op' => 'confirm', 'reason_code' => 'identity_verified', 'reason_note' => '']);
+check('access: unlock needs a reason and clears the lock', (int) $pdo->query("SELECT is_locked FROM users WHERE id='{$ninaId}'")->fetchColumn() === 0 && (int) $pdo->query("SELECT failed_login_attempts FROM users WHERE id='{$ninaId}'")->fetchColumn() === 0);
+$vetTok = $vet->csrf('/console.php?page=owners');
+$r = $vet->req('POST', '/console.php?page=users', ['csrf' => $vetTok, 'page' => 'users', 'id' => $ninaId, 'act' => 'deactivate', 'rev' => '0', 'op' => 'confirm', 'reason_code' => 'security', 'reason_note' => ''], false, true);
+check('access: a veterinarian cannot deactivate accounts', (int) $pdo->query("SELECT is_active FROM users WHERE id='{$ninaId}'")->fetchColumn() === 1);
+
+// ---------- 5a2. Price list: add, edit, retire and restore with a reason
+$assist = new Client();
+$assist->signIn($creds['assistant']['email'], $newPassword, '/console.php?page=owners');
+$r = $admin->post('catalog', ['name' => '##', 'category' => 'Nope', 'price' => '-4', 'unit' => '', 'id' => '']);
+check('price list: invalid item rejected with messages', $r['status'] === 422 && str_contains($r['body'], 'Choose a category') && str_contains($r['body'], 'Use numbers only'));
+$r = $admin->post('catalog', ['name' => 'Probiotic Paste', 'category' => 'Pet vitamins', 'price' => '100', 'unit' => 'tube', 'id' => '']);
+check('price list: duplicate name rejected (any case)', $r['status'] === 422 && str_contains($r['body'], 'already exists'));
+$r = $admin->post('catalog', ['name' => 'Flea Shampoo', 'category' => 'Pet shampoo', 'price' => '325.50', 'unit' => 'bottle', 'description' => 'Gentle formula', 'id' => '']);
+check('price list: valid item added', $r['status'] === 302 && (float) $pdo->query("SELECT price FROM clinic_catalog_items WHERE name='Flea Shampoo'")->fetchColumn() === 325.5);
+$shampoo = (string) $pdo->query("SELECT id FROM clinic_catalog_items WHERE name='Flea Shampoo'")->fetchColumn();
+check('price list: product ids are generated', str_starts_with($shampoo, 'product_flea_shampoo'));
+$r = $admin->post('catalog', ['name' => 'Flea Shampoo', 'category' => 'Pet shampoo', 'price' => '350', 'unit' => 'bottle', 'description' => '', 'rev' => '0', 'id' => $shampoo]);
+check('price list: editing the price saves and bumps the revision', $r['status'] === 302 && (float) $pdo->query("SELECT price FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn() === 350.0 && (int) $pdo->query("SELECT revision FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn() === 1);
+$r = $admin->post('catalog', ['name' => 'Flea Shampoo', 'category' => 'Pet shampoo', 'price' => '360', 'unit' => 'bottle', 'description' => '', 'rev' => '0', 'id' => $shampoo]);
+check('price list: a stale edit form is refused', $r['status'] === 422 && str_contains($r['body'], 'changed by someone else'));
+$list = $admin->req('GET', '/console.php?page=catalog');
+check('price list: the list shows Active, Retired and All chips with counts', str_contains($list['body'], 'Active <b>3</b>') && str_contains($list['body'], 'Retired <b>0</b>') && str_contains($list['body'], 'Flea Shampoo'));
+$r = $admin->req('GET', '/console.php?page=catalog&do=access&act=retire&id=srv_consult');
+check('price list: a core clinical service cannot be retired', str_contains($r['body'], 'cannot be retired'));
+$form = $admin->req('GET', '/console.php?page=catalog&do=access&act=retire&id=' . $shampoo);
+check('price list: retiring asks for a reason from a list', str_contains($form['body'], 'Item discontinued') && str_contains($form['body'], 'Replaced by another item'));
+$ctok = $admin->csrf('/console.php?page=catalog');
+$cflow = fn(array $d) => $admin->req('POST', '/console.php?page=catalog', $d + ['csrf' => $ctok, 'page' => 'catalog', 'id' => $shampoo, 'act' => 'retire', 'rev' => '1']);
+check('price list: retiring without a reason is declined', $cflow(['op' => 'review', 'reason_code' => ''])['status'] === 422);
+$r = $cflow(['op' => 'review', 'reason_code' => 'discontinued', 'reason_note' => '']);
+check('price list: the review step shows what will change', $r['status'] === 200 && str_contains($r['body'], 'Review the changes') && str_contains($r['body'], 'Retired') && str_contains($r['body'], 'Confirm retirement'));
+check('price list: still active until confirmed', (int) $pdo->query("SELECT active FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn() === 1);
+$cflow(['op' => 'confirm', 'reason_code' => 'discontinued', 'reason_note' => 'Supplier stopped making it']);
+check('price list: confirming retires it (soft delete, row kept)', (int) $pdo->query("SELECT active FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn() === 0 && (int) $pdo->query("SELECT COUNT(*) FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn() === 1);
+check('price list: the reason is stored and audited', str_contains((string) $pdo->query("SELECT status_reason FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn(), 'Item discontinued: Supplier stopped making it') && (int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE action LIKE 'Retire price list item%Supplier stopped making it%'")->fetchColumn() === 1);
+$list = $admin->req('GET', '/console.php?page=catalog&status=retired');
+check('price list: the Retired chip lists it, with Restore', str_contains($list['body'], 'Flea Shampoo') && str_contains($list['body'], 'act=restore'));
+$list = $admin->req('GET', '/console.php?page=catalog');
+check('price list: the default view hides retired items', !str_contains($list['body'], 'Flea Shampoo'));
+$admin->req('POST', '/console.php?page=catalog', ['csrf' => $ctok, 'page' => 'catalog', 'id' => $shampoo, 'act' => 'restore', 'rev' => '2', 'op' => 'confirm', 'reason_code' => 'offered_again', 'reason_note' => '']);
+check('price list: restoring brings it back', (int) $pdo->query("SELECT active FROM clinic_catalog_items WHERE id='{$shampoo}'")->fetchColumn() === 1);
+$r = $assist->req('GET', '/console.php?page=catalog');
+check('price list: assistants cannot manage the price list', !str_contains($r['body'], 'Services &amp; products · ') );
+$r = $vet->req('GET', '/console.php?page=catalog&do=access&act=retire&id=' . $shampoo);
+check('price list: veterinarians cannot retire items', !str_contains($r['body'], 'Review changes') && !str_contains($r['body'], 'Item discontinued'));
+
+// ---------- 5a3. Vaccination recall reminders
+$due = date('Y-m-d', strtotime('+3 days'));
+$pdo->exec("INSERT INTO owners (id, name, email, phone, address) VALUES ('o_r', 'Remy Owner', 'remy-owner@example.test', '09171112222', '9 Reminder Street')");
+$pdo->exec("INSERT INTO pets (id, owner_id, name, species, breed, sex, birth, weight, neutered) VALUES ('p_r', 'o_r', 'Remi', 'Dog', 'Mixed', 'Male', '2020-01-01', 6, 'Yes')");
+$pdo->exec("INSERT INTO vaccinations (id, pet_id, card_id, vaccine, date, next_due, done) VALUES ('v_rem', 'p_r', 'VACC-1', 'Rabies', '2026-01-01', '{$due}', 1)");
+$page = $admin->req('GET', '/console.php?page=reminders');
+check('reminders: the status page opens with its cards', $page['status'] === 200 && str_contains($page['body'], 'Automatic vaccination recall reminders') && str_contains($page['body'], 'Needs attention') && str_contains($page['body'], 'Worker needs checking'));
+check('reminders: a missing run is explained, with the three ways to schedule it', str_contains($page['body'], 'No completed reminder run is recorded') && str_contains($page['body'], 'CRON_SECRET'));
+@unlink(__DIR__ . '/storage/outbox.log');
+$rtok = $admin->csrf('/console.php?page=reminders');
+$r = $admin->req('POST', '/console.php?page=reminders', ['csrf' => $rtok, 'page' => 'reminders', 'op' => 'run'], false, true);
+check('reminders: "Run reminders now" sends the due reminders', str_contains($r['body'], 'Reminder run finished: 2 sent, 0 failed'), substr(strip_tags($r['body']), 0, 300));
+$log = (string) @file_get_contents(__DIR__ . '/storage/outbox.log');
+check('reminders: an email and a text message went to the owner', str_contains($log, 'EMAIL to remy-owner@example.test') && str_contains($log, 'SMS to 09171112222') && str_contains($log, "Rabies booster is due on {$due}"), $log);
+check('reminders: only the closest milestone (3 days) was sent', (int) $pdo->query("SELECT COUNT(*) FROM vaccination_reminders WHERE milestone=3 AND status='accepted'")->fetchColumn() === 2 && (int) $pdo->query("SELECT COUNT(*) FROM vaccination_reminders")->fetchColumn() === 2);
+$r = $admin->req('POST', '/console.php?page=reminders', ['csrf' => $rtok, 'page' => 'reminders', 'op' => 'run'], false, true);
+check('reminders: running again never duplicates a reminder', str_contains($r['body'], '0 sent') && substr_count((string) @file_get_contents(__DIR__ . '/storage/outbox.log'), 'Rabies booster') === 2);
+$page = $admin->req('GET', '/console.php?page=reminders');
+check('reminders: the page now shows the run and the accepted count', str_contains($page['body'], 'Worker running') && str_contains($page['body'], 'Accepted by provider') && !str_contains($page['body'], 'Worker needs checking'));
+check('reminders: assistants and vets can view the page but not run it', str_contains($assist->req('GET', '/console.php?page=reminders')['body'], 'Accepted by provider') && !str_contains($assist->req('GET', '/console.php?page=reminders')['body'], 'Run reminders now'));
+$cron = getenv('CRON_SECRET');
+check('reminders: the job URL refuses a missing or wrong secret', (new Client())->req('GET', '/api/jobs/reminders')['status'] === 401);
+$ch = curl_init($base . '/api/jobs/reminders'); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $cron]]);
+$body = json_decode((string) curl_exec($ch), true); $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
+check('reminders: the job URL with the right secret runs the reminders', $code === 200 && ($body['success'] ?? false) === true && ($body['sent'] ?? -1) === 0, json_encode($body));
 
 // ---------- 5b. Who may do what through the API (pet owner, veterinarian, assistant)
 $pdo->exec("INSERT INTO owners (id, name, email, phone, address) VALUES ('o_a', 'Olive Owner', 'olive@example.test', '09170001111', '1 Test Street'), ('o_b', 'Other Owner', 'other2@example.test', '09170002222', '2 Test Street')");
@@ -336,6 +462,160 @@ $r = $post(['cur' => 'Not-The-Password-1', 'next' => $adminNew, 'conf' => $admin
 check('console: wrong current password is declined', $r['status'] === 422 && str_contains($r['body'], 'Current password is incorrect'));
 $r = $post(['cur' => $creds['admin']['password'], 'next' => $adminNew, 'conf' => $adminNew]);
 check('console: valid change saves and returns to My account', $r['status'] === 302 && password_verify($adminNew, (string) $pdo->query("SELECT password_hash FROM users WHERE id='admin1'")->fetchColumn()));
+
+// ---------- 5d. Visit workflow: approve, check in with vitals, consult, vaccinate, check out, receipt
+$today = date('Y-m-d');
+$pdo->exec("INSERT INTO owners (id, name, email, phone, address) VALUES ('o_w', 'Wanda Owner', 'wanda@example.test', '09173334444', '3 Workflow Lane')");
+$pdo->exec("INSERT INTO pets (id, owner_id, name, species, breed, sex, birth, weight, neutered) VALUES ('p_w', 'o_w', 'Wally', 'Dog', 'Beagle', 'Male', '2020-01-01', 6, 'Yes')");
+$pdo->exec("INSERT INTO appointments (id, pet_id, vet_id, date, time, reason, status, billing_status) VALUES ('a_w1', 'p_w', 'vet1', '{$today}', '10:00', 'Checkup', 'Pending Approval', 'Unbilled')");
+$pdo->exec("INSERT INTO appointments (id, pet_id, vet_id, date, time, reason, status, billing_status) VALUES ('a_w2', 'p_w', 'vet1', '" . date('Y-m-d', strtotime('+3 days')) . "', '11:00', 'Later', 'Scheduled', 'Unbilled')");
+$step = function (Client $who, string $op, string $id, array $d = [], string $page = 'appointments') {
+    $t = $who->csrf('/console.php?page=' . $page);
+    return $who->req('POST', '/console.php?page=' . $page, $d + ['csrf' => $t, 'page' => $page, 'op' => $op, 'id' => $id], false, true);
+};
+$status = fn(string $id) => (string) $pdo->query("SELECT status FROM appointments WHERE id='{$id}'")->fetchColumn();
+$billing = fn(string $id) => (string) $pdo->query("SELECT billing_status FROM appointments WHERE id='{$id}'")->fetchColumn();
+
+$r = $step($vet, 'approve', 'a_w1');
+check('workflow: a vet cannot approve a request', $status('a_w1') === 'Pending Approval' && str_contains($r['body'], 'Only reception or an administrator'));
+$r = $step($assist, 'checkin', 'a_w1', ['weight' => '6', 'temp' => '38.5', 'triage' => 'Routine']);
+check('workflow: an unapproved request cannot be checked in', $status('a_w1') === 'Pending Approval' && str_contains($r['body'], 'approved, scheduled visit'));
+$r = $step($assist, 'approve', 'a_w1');
+check('workflow: the assistant approves the request', $status('a_w1') === 'Scheduled' && str_contains($r['body'], 'Request approved'));
+$r = $step($assist, 'checkin', 'a_w2', ['weight' => '6', 'temp' => '38.5', 'triage' => 'Routine']);
+check('workflow: a future visit cannot be checked in early', $status('a_w2') === 'Scheduled' && str_contains($r['body'], 'on the day of the visit'));
+
+$page = $assist->req('GET', '/console.php?page=appointments&do=checkin&id=a_w1');
+check('check-in: the vitals form opens', $page['status'] === 200 && str_contains($page['body'], 'Measured weight') && str_contains($page['body'], 'Triage level'));
+$bad = $step($assist, 'checkin', 'a_w1', ['weight' => 'heavy', 'temp' => '50', 'triage' => 'Nope']);
+check('check-in: invalid vitals are explained and nothing is saved', $bad['status'] === 422 && str_contains($bad['body'], 'Use numbers only') && str_contains($bad['body'], 'between 32 and 43') && str_contains($bad['body'], 'Choose Routine') && $status('a_w1') === 'Scheduled');
+$jump = $step($assist, 'checkin', 'a_w1', ['weight' => '60', 'temp' => '38.5', 'triage' => 'Routine']);
+check('check-in: a 10x weight jump must be confirmed', $jump['status'] === 422 && str_contains($jump['body'], 'different from the last weight') && $status('a_w1') === 'Scheduled');
+$r = $step($assist, 'checkin', 'a_w1', ['weight' => '6.4', 'temp' => '38.5', 'triage' => 'Priority', 'notes' => 'Limping']);
+check('check-in: valid vitals check the patient in', $status('a_w1') === 'Checked-in' && str_contains($r['body'], 'Patient checked in'));
+check('check-in: the pet weight and weight history are updated', (float) $pdo->query("SELECT weight FROM pets WHERE id='p_w'")->fetchColumn() === 6.4 && (int) $pdo->query("SELECT COUNT(*) FROM pet_weights WHERE pet_id='p_w'")->fetchColumn() === 1);
+$r = $step($assist, 'checkin', 'a_w1', ['weight' => '6.4', 'temp' => '38.5', 'triage' => 'Routine']);
+check('check-in: checking in twice is refused', str_contains($r['body'], 'approved, scheduled visit'));
+
+$r = $step($assist, 'startconsult', 'a_w1');
+check('consult: an assistant cannot start a consultation', $status('a_w1') === 'Checked-in' && str_contains($r['body'], 'Only the assigned veterinarian'));
+$r = $step($vet, 'startconsult', 'a_w1');
+check('consult: the assigned vet starts it', $status('a_w1') === 'In consultation');
+
+$page = $vet->req('GET', '/console.php?page=appointments&do=consult&id=a_w1');
+check('consult: the notes form shows the vitals, vaccine and price list', $page['status'] === 200 && str_contains($page['body'], 'Vitals at check-in: 6.4 kg') && str_contains($page['body'], 'Vaccine given') && str_contains($page['body'], 'Routine General Consultation'));
+$bad = $step($vet, 'consult', 'a_w1', ['symptoms' => '', 'objective' => 'ok exam', 'diagnosis' => '', 'treatment' => 'rest', 'vaccine' => 'Anti-rabies', 'brand' => '', 'qty' => ['srv_consult' => '-1']]);
+check('consult: missing notes, vaccine details and a bad quantity are rejected', $bad['status'] === 422 && str_contains($bad['body'], 'symptoms') && str_contains($bad['body'], 'brand') && str_contains($bad['body'], 'whole numbers') && (int) $pdo->query("SELECT COUNT(*) FROM consultations WHERE appt_id='a_w1'")->fetchColumn() === 0, strip_tags(substr($bad['body'], 0, 3000)));
+$good = ['symptoms' => 'Limping on the left leg', 'objective' => 'Mild swelling, no fracture', 'diagnosis' => 'Sprain', 'treatment' => 'Rest and anti-inflammatory', 'prescription' => 'Meloxicam 5 days', 'follow_up_date' => date('Y-m-d', strtotime('+7 days')),
+    'vaccine' => 'Anti-rabies', 'brand' => 'Rabisin', 'batch' => 'LOT-123', 'next_due' => date('Y-m-d', strtotime('+365 days')), 'qty' => ['srv_consult' => '1', 'product_probiotic' => '2']];
+$r = $step($assist, 'consult', 'a_w1', $good);
+check('consult: an assistant cannot save medical notes', (int) $pdo->query("SELECT COUNT(*) FROM consultations WHERE appt_id='a_w1'")->fetchColumn() === 0);
+$r = $step($vet, 'consult', 'a_w1', $good);
+check('consult: valid notes complete the visit', $status('a_w1') === 'Completed' && str_contains($r['body'], 'Visit notes saved'), strip_tags(substr($r['body'], 0, 2000)));
+check('consult: the vaccine is on the vaccination card with a card number', (int) $pdo->query("SELECT COUNT(*) FROM vaccinations WHERE pet_id='p_w' AND vaccine='Anti-rabies' AND batch='LOT-123'")->fetchColumn() === 1 && str_starts_with((string) $pdo->query("SELECT vaccination_card_id FROM pets WHERE id='p_w'")->fetchColumn(), 'VACC-'));
+check('consult: the invoice total comes from the price list (500 + 2 x 750)', (float) $pdo->query("SELECT amount FROM appointments WHERE id='a_w1'")->fetchColumn() === 2000.0 && $billing('a_w1') === 'Unpaid');
+$r = $step($vet, 'consult', 'a_w1', $good);
+check('consult: saving the same visit twice is refused', (int) $pdo->query("SELECT COUNT(*) FROM consultations WHERE appt_id='a_w1'")->fetchColumn() === 1);
+
+$r = $step($vet, 'checkout', 'a_w1', ['method' => 'Cash', 'cash_tendered' => '2000']);
+check('checkout: a vet cannot take payment', $billing('a_w1') === 'Unpaid' && str_contains($r['body'], 'Only reception or an administrator'));
+$page = $assist->req('GET', '/console.php?page=appointments&do=checkout&id=a_w1');
+check('checkout: the form shows the invoice total', $page['status'] === 200 && str_contains($page['body'], '₱2,000.00') && str_contains($page['body'], 'Payment method'));
+$bad = $step($assist, 'checkout', 'a_w1', ['method' => 'Cash', 'cash_tendered' => '1500']);
+check('checkout: cash short of the total is declined', $bad['status'] === 422 && str_contains($bad['body'], 'must cover the total'));
+$bad = $step($assist, 'checkout', 'a_w1', ['method' => 'GCash', 'reference' => 'ab']);
+check('checkout: a short reference is declined', $bad['status'] === 422 && str_contains($bad['body'], 'at least 4 characters'));
+$bad = $step($assist, 'checkout', 'a_w1', ['method' => 'Bitcoin']);
+check('checkout: an unknown payment method is declined', $bad['status'] === 422 && str_contains($bad['body'], 'Choose a payment method'));
+$r = $step($assist, 'checkout', 'a_w1', ['method' => 'GCash', 'reference' => 'GC-778899']);
+check('checkout: a GCash payment with a reference is recorded and the receipt opens', $billing('a_w1') === 'Paid' && str_contains($r['body'], 'Official receipt') && str_contains($r['body'], 'GC-778899'), strip_tags(substr($r['body'], 0, 1500)));
+$r = $step($assist, 'checkout', 'a_w1', ['method' => 'Cash', 'cash_tendered' => '5000']);
+check('checkout: a paid invoice cannot be paid twice', str_contains($r['body'], 'completed, unpaid visit') && (string) $pdo->query("SELECT payment_method FROM appointments WHERE id='a_w1'")->fetchColumn() === 'GCash');
+
+$pdo->exec("INSERT INTO appointments (id, pet_id, vet_id, date, time, reason, status, billing_status, invoice_items, amount) VALUES ('a_w3', 'p_w', 'vet1', '{$today}', '14:00', 'Recheck', 'Completed', 'Unpaid', '[{\"id\":\"srv_consult\",\"name\":\"Routine General Consultation\",\"price\":500,\"qty\":1}]', 500)");
+$bad = $step($assist, 'checkout', 'a_w3', ['method' => 'GCash', 'reference' => 'GC-778899']);
+check('checkout: a payment reference cannot be used twice', $bad['status'] === 422 && str_contains($bad['body'], 'already used'));
+$r = $step($admin, 'checkout', 'a_w3', ['method' => 'Cash', 'cash_tendered' => '1000']);
+check('checkout: cash payment shows the change due on the receipt', str_contains($r['body'], 'change ₱500.00'), strip_tags(substr($r['body'], 0, 1500)));
+check('workflow: every step is in the audit log', (int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE action LIKE 'Recorded % payment%' OR action LIKE 'Checked in Wally%' OR action LIKE 'Saved consultation%'")->fetchColumn() >= 4);
+
+$page = $vet->req('GET', '/console.php?page=pets&do=view&id=p_w');
+check('patient record: shows the vaccination card, history and weights', $page['status'] === 200 && str_contains($page['body'], 'Vaccination card') && str_contains($page['body'], 'Rabisin') && str_contains($page['body'], 'Sprain') && str_contains($page['body'], '6.4 kg'));
+check('patient record: an unknown patient is handled', str_contains($vet->req('GET', '/console.php?page=pets&do=view&id=nope')['body'], 'no longer exists'));
+
+// ---------- 5e. Owner portal: register, sign in, see only your own data, book and cancel, bills, password
+$reg = new Client();
+$page = $reg->req('GET', '/portal.php?register=1');
+check('portal: the registration page opens without signing in', $page['status'] === 200 && str_contains($page['body'], 'Create your PawCare account') && str_contains($page['body'], 'name="email"'));
+$regToken = $reg->csrf('/portal.php?register=1');
+$ownerPw = 'Ow!' . bin2hex(random_bytes(5)) . 'N7';
+$good = ['first_name' => 'Quinn', 'last_name' => 'Portal', 'birthday' => '1995-05-05', 'mobile_number' => '09175550123', 'email' => 'quinn@example.test', 'address' => '5 Portal Road', 'password' => $ownerPw, 'confirm' => $ownerPw, 'csrf' => $regToken];
+$r = $reg->req('POST', '/portal.php?register=1', ['email' => 'not-an-email', 'password' => 'short', 'confirm' => 'other', 'mobile_number' => '123'] + $good);
+check('portal register: invalid input is explained and nothing is created', $r['status'] === 422 && str_contains($r['body'], 'valid email') && str_contains($r['body'], 'do not match') && (int) $pdo->query("SELECT COUNT(*) FROM users WHERE email='not-an-email'")->fetchColumn() === 0);
+$r = $reg->req('POST', '/portal.php?register=1', ['email' => 'wanda@example.test', 'confirm' => $ownerPw] + $good);
+$r = $reg->req('POST', '/portal.php?register=1', $good);
+check('portal register: a valid form creates the owner account', $r['status'] === 302 && (int) $pdo->query("SELECT COUNT(*) FROM users WHERE email='quinn@example.test' AND role='owner'")->fetchColumn() === 1, $r['head']);
+$r = $reg->req('POST', '/portal.php?register=1', ['csrf' => $reg->csrf('/portal.php?register=1')] + $good);
+check('portal register: the same email cannot register twice', $r['status'] === 409 && str_contains($r['body'], 'already registered'));
+$quinnOwner = (string) $pdo->query("SELECT owner_id FROM users WHERE email='quinn@example.test'")->fetchColumn();
+$pdo->exec("INSERT INTO pets (id, owner_id, name, species, breed, sex, birth, weight, neutered, vaccination_card_id) VALUES ('p_q', '{$quinnOwner}', 'Quill', 'Cat', 'Mixed', 'Female', '2021-02-02', 4, 'Yes', 'VACC-2026-4242')");
+$pdo->exec("INSERT INTO vaccinations (id, pet_id, card_id, vaccine, brand, batch, date, next_due, done) VALUES ('v_q', 'p_q', 'VACC-2026-4242', 'Feline 4-in-1', 'Felocell', 'B-77', '2026-01-10', '2027-01-10', 1)");
+
+$q = new Client();
+$page = $q->req('GET', '/portal.php');
+check('portal: signed-out visitors see only the sign-in form', $page['status'] === 401 && str_contains($page['body'], 'pet owner sign in') && !str_contains($page['body'], 'Quill'));
+$r = $q->signIn('quinn@example.test', 'Wrong-Password-1', '/portal.php');
+check('portal: a wrong password shows the attempt counter', str_contains($r['body'], 'Attempt 1 of 3'));
+$r = $q->signIn('quinn@example.test', $ownerPw, '/portal.php');
+$page = $q->req('GET', '/portal.php?page=pets');
+check('portal: the owner sees their own pet', $page['status'] === 200 && str_contains($page['body'], 'Quill') && !str_contains($page['body'], 'Wally') && !str_contains($page['body'], 'Pip'), strip_tags(substr($page['body'], -800)));
+$page = $q->req('GET', '/portal.php?page=pets&pet=p_q');
+check('portal: the vaccination card shows the recorded vaccine', str_contains($page['body'], 'VACC-2026-4242') && str_contains($page['body'], 'Felocell') && str_contains($page['body'], 'B-77'));
+$page = $q->req('GET', '/portal.php?page=pets&pet=p_w');
+check('portal: another client\'s pet is not reachable by id', str_contains($page['body'], 'not found on your account') && !str_contains($page['body'], 'Rabisin') && !str_contains($page['body'], 'Sprain'));
+$page = $q->req('GET', '/portal.php?page=bills&id=a_w1');
+check('portal: another client\'s bill is not reachable by id', str_contains($page['body'], 'bill was not found') && !str_contains($page['body'], 'GC-778899'));
+$page = $q->req('GET', '/console.php?page=owners');
+check('portal: an owner cannot open the staff console', $page['status'] === 403);
+
+$pt = fn(array $d) => $q->req('POST', '/portal.php?page=appointments', $d + ['csrf' => $q->csrf('/portal.php?page=appointments'), 'page' => 'appointments'], false, true);
+$future = date('Y-m-d', strtotime('+10 days'));
+$r = $pt(['op' => 'book', 'pet_id' => 'p_w', 'vet_id' => 'vet1', 'date' => $future, 'time' => '09:00', 'reason' => 'Sneaky booking']);
+check('portal: booking for somebody else\'s pet is refused', str_contains($r['body'], 'Choose one of your pets') && (int) $pdo->query("SELECT COUNT(*) FROM appointments WHERE reason='Sneaky booking'")->fetchColumn() === 0);
+$r = $pt(['op' => 'book', 'pet_id' => 'p_q', 'vet_id' => 'vet1', 'date' => '2001-01-01', 'time' => '03:00', 'reason' => '']);
+check('portal: invalid booking input is explained', $r['status'] === 422 && str_contains($r['body'], 'The clinic is open') && str_contains($r['body'], 'reason'));
+$r = $pt(['op' => 'book', 'pet_id' => 'p_q', 'vet_id' => 'vet1', 'date' => $future, 'time' => '09:00', 'reason' => 'Annual checkup']);
+check('portal: a valid request is saved as waiting for approval', str_contains($r['body'], 'Visit requested') && (string) $pdo->query("SELECT status FROM appointments WHERE reason='Annual checkup'")->fetchColumn() === 'Pending Approval');
+$r = $pt(['op' => 'book', 'pet_id' => 'p_q', 'vet_id' => 'vet1', 'date' => $future, 'time' => '09:00', 'reason' => 'Annual checkup again']);
+check('portal: the same pet cannot be booked twice on one day', $r['status'] === 422 && str_contains($r['body'], 'already has a visit'));
+$mine = (string) $pdo->query("SELECT id FROM appointments WHERE reason='Annual checkup'")->fetchColumn();
+$r = $pt(['op' => 'cancel', 'id' => 'a_w2']);
+check('portal: cancelling someone else\'s visit is refused', str_contains($r['body'], 'was not found') && $status('a_w2') === 'Scheduled');
+$r = $pt(['op' => 'cancel', 'id' => 'a_w1']);
+check('portal: a finished visit cannot be cancelled', $status('a_w1') === 'Completed');
+$r = $pt(['op' => 'cancel', 'id' => $mine]);
+check('portal: the owner cancels their own request', $status($mine) === 'Cancelled' && str_contains($r['body'], 'visit was cancelled'));
+
+$pdo->exec("INSERT INTO appointments (id, pet_id, vet_id, date, time, reason, status, billing_status, invoice_items, amount) VALUES ('a_q1', 'p_q', 'vet1', '{$today}', '15:00', 'Dental', 'Completed', 'Unpaid', '[{\"id\":\"srv_consult\",\"name\":\"Routine General Consultation\",\"price\":500,\"qty\":1}]', 500)");
+$page = $q->req('GET', '/portal.php?page=bills');
+check('portal: the owner sees their own bill and not others', str_contains($page['body'], '₱500.00') && str_contains($page['body'], 'Unpaid') && !str_contains($page['body'], '₱2,000.00'));
+$page = $q->req('GET', '/portal.php?page=bills&id=a_q1');
+check('portal: an unpaid bill is shown as a statement', str_contains($page['body'], 'Routine General Consultation') && str_contains($page['body'], 'Please pay at the front desk'));
+
+$pa = fn(array $d) => $q->req('POST', '/portal.php?page=account', $d + ['csrf' => $q->csrf('/portal.php?page=account'), 'page' => 'account', 'op' => 'save']);
+$r = $pa(['cur' => $ownerPw, 'next' => $ownerPw, 'conf' => $ownerPw]);
+check('portal: the same password as the current one is declined', $r['status'] === 422 && str_contains($r['body'], 'must be different'));
+$r = $pa(['cur' => 'Nope-Nope-1!', 'next' => 'Brand!New-Pass9x', 'conf' => 'Brand!New-Pass9x']);
+check('portal: a wrong current password is declined', $r['status'] === 422 && str_contains($r['body'], 'Current password is incorrect'));
+$r = $pa(['cur' => $ownerPw, 'next' => 'Brand!New-Pass9x', 'conf' => 'Brand!New-Pass9x']);
+check('portal: a valid change saves', $r['status'] === 302 && password_verify('Brand!New-Pass9x', (string) $pdo->query("SELECT password_hash FROM users WHERE email='quinn@example.test'")->fetchColumn()), $r['status'] . ' ' . strip_tags(substr($r['body'], -700)));
+
+$staffTry = new Client();
+$r = $staffTry->signIn($creds['vet']['email'], $creds['vet']['password'], '/portal.php');
+check('portal: staff are pointed to the staff console', str_contains($r['body'], 'pet owner portal') && str_contains($r['body'], 'staff console'), strip_tags(substr($r['body'], -600)));
+$t = $q->csrf('/portal.php?page=account');
+$q->req('POST', '/portal.php', ['action' => 'logout', 'csrf' => $t]);
+check('portal: signing out ends the session', $q->req('GET', '/portal.php?page=pets')['status'] === 401);
 
 // ---------- 6. Sign out
 $r = $admin->req('GET', '/console.php?page=owners');

@@ -37,6 +37,7 @@ class AuthController {
         }
 
         $pdo = Database::getConnection();
+        Schema::ensure($pdo);
 
         // 1. Fetch user by email using PDO Prepared Statement
         $stmt = $pdo->prepare("SELECT * FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
@@ -84,6 +85,13 @@ class AuthController {
                     'error' => "Invalid email or password. Attempt {$attempts} of " . self::MAX_LOGIN_ATTEMPTS . ". Your account will lock after " . ($remaining === 1 ? 'one more incorrect attempt.' : "{$remaining} more incorrect attempts.")]);
                 return;
             }
+        }
+
+        // A deactivated account cannot sign in, even with the right password.
+        if (isset($user['is_active']) && (int) $user['is_active'] === 0) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'deactivated' => true, 'error' => 'Your account is deactivated. Contact the clinic administrator.']);
+            return;
         }
 
         // 4. Successful Login - Reset failed attempts

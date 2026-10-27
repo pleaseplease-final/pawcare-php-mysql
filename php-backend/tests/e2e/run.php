@@ -26,7 +26,9 @@ copy(__DIR__ . '/setup.php', $tmp . '/setup.php');
 copy(__DIR__ . '/client.php', $tmp . '/client.php');
 
 passthru(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($tmp . '/setup.php'));
-$env = array_merge(getenv(), ['APP_ENV' => 'local']);
+$cron = bin2hex(random_bytes(12));
+putenv('CRON_SECRET=' . $cron);
+$env = array_merge(getenv(), ['APP_ENV' => 'local', 'CRON_SECRET' => $cron]);
 $server = proc_open([PHP_BINARY, '-S', '127.0.0.1:8125', 'index.php'], [0 => ['pipe', 'r'], 1 => ['file', $tmp . '/server.log', 'a'], 2 => ['file', $tmp . '/server.log', 'a']], $pipes, $tmp, $env);
 usleep(1500000);
 passthru(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($tmp . '/client.php'), $code);
@@ -34,7 +36,7 @@ proc_terminate($server);
 proc_close($server);
 
 // Remove only the temporary folder created above.
-if (str_starts_with(basename($tmp), 'pawcare_e2e_') && str_starts_with($tmp, sys_get_temp_dir())) {
+if (!getenv('E2E_KEEP') && str_starts_with(basename($tmp), 'pawcare_e2e_') && str_starts_with($tmp, sys_get_temp_dir())) {
     $cleanup = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
     foreach ($cleanup as $file) { $file->isDir() ? @rmdir($file->getPathname()) : @unlink($file->getPathname()); }
     @rmdir($tmp);

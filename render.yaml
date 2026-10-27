@@ -29,5 +29,7 @@ services:
         sync: false
       - key: TEXTBEE_DEVICE_ID
         sync: false
+      - key: CRON_SECRET         # lets a scheduler call /api/jobs/reminders every day
+        sync: false
       - key: CORS_ORIGINS        # leave empty unless another website must call the API
         value: ""

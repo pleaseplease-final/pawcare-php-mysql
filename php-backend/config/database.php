@@ -32,19 +32,22 @@ class Database {
 
         // SSL certificate options for online cloud databases (TiDB Cloud, Aiven, etc.)
         if ($ssl) {
-            $options[PDO::MYSQL_ATTR_SSL_CA] = true;
-            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            // Linux hosts keep the trusted certificate list in one of these files. (Windows/XAMPP has none, so it keeps the old setting.)
+            foreach (['/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt', '/etc/ssl/cert.pem', '/etc/ssl/ca-bundle.pem'] as $bundle) {
+                if (is_file($bundle)) { $options[PDO::MYSQL_ATTR_SSL_CA] = $bundle; break; }
+            }
+            if (!isset($options[PDO::MYSQL_ATTR_SSL_CA])) $options[PDO::MYSQL_ATTR_SSL_CA] = true;
+            // Set DB_SSL_VERIFY=true to also check the server's certificate (recommended once the connection works).
+            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = filter_var(getenv('DB_SSL_VERIFY'), FILTER_VALIDATE_BOOLEAN);
         }
 
         try {
             self::$pdo = new PDO($dsn, $user, $pass, $options);
             return self::$pdo;
         } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode([
-                'success' => false,
-                'error' => 'Database connection failed: ' . $e->getMessage()
-            ]);
+            error_log('Database connection failed: ' . $e->getMessage());
+            http_response_code(503);
+            echo json_encode(['success' => false, 'error' => 'The clinic database is not reachable right now. Please try again in a moment.']);
             exit;
         }
     }

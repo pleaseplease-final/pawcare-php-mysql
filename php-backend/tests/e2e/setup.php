@@ -7,11 +7,13 @@ $pdo->exec("CREATE TABLE users (id TEXT PRIMARY KEY, first_name TEXT, last_name 
 $pdo->exec("CREATE TABLE owners (id TEXT PRIMARY KEY, user_id TEXT, name TEXT, email TEXT, phone TEXT, address TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
 $pdo->exec("CREATE TABLE pets (id TEXT PRIMARY KEY, owner_id TEXT, name TEXT, species TEXT, species_other TEXT, breed TEXT, sex TEXT, birth TEXT, weight REAL, color TEXT, neutered TEXT, allergies TEXT, vaccination_card_id TEXT, notes TEXT, photo TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
 $pdo->exec("CREATE TABLE pet_weights (id TEXT PRIMARY KEY, pet_id TEXT, date TEXT, kg REAL, recorded_by TEXT)");
-$pdo->exec("CREATE TABLE appointments (id TEXT PRIMARY KEY, pet_id TEXT, vet_id TEXT, date TEXT, time TEXT, reason TEXT, status TEXT DEFAULT 'Scheduled', billing_status TEXT DEFAULT 'Unbilled', amount REAL DEFAULT 600, payment_method TEXT, paid_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+$pdo->exec("CREATE TABLE appointments (id TEXT PRIMARY KEY, pet_id TEXT, vet_id TEXT, date TEXT, time TEXT, reason TEXT, status TEXT DEFAULT 'Scheduled', billing_status TEXT DEFAULT 'Unbilled', amount REAL DEFAULT 600, payment_method TEXT, paid_at TEXT, intake_vitals TEXT, invoice_items TEXT, payment_details TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
 $pdo->exec("CREATE TABLE audit_logs (id TEXT PRIMARY KEY, user_name TEXT, user_role TEXT, action TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
 $pdo->exec("CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user_id TEXT, expires_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+$pdo->exec("CREATE TABLE clinic_catalog_items (id TEXT PRIMARY KEY, name TEXT UNIQUE, category TEXT, price REAL, unit TEXT DEFAULT 'item / package', description TEXT DEFAULT '', active INTEGER DEFAULT 1, built_in INTEGER DEFAULT 0, previous_prices TEXT, revision INTEGER DEFAULT 0, updated_by TEXT DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+$pdo->exec("INSERT INTO clinic_catalog_items (id, name, category, price, built_in) VALUES ('srv_consult', 'Routine General Consultation', 'Consultation & Exam', 500, 1), ('product_probiotic', 'Probiotic Paste', 'Pet vitamins', 750, 1)");
 $pdo->exec("CREATE TABLE consultations (id TEXT PRIMARY KEY, pet_id TEXT, vet_id TEXT, appt_id TEXT, date TEXT, symptoms TEXT, objective TEXT, diagnosis TEXT, treatment TEXT, prescription TEXT)");
-$pdo->exec("CREATE TABLE vaccinations (id TEXT PRIMARY KEY, pet_id TEXT, card_id TEXT, vaccine TEXT, date TEXT, next_due TEXT, done INTEGER DEFAULT 1)");
+$pdo->exec("CREATE TABLE vaccinations (id TEXT PRIMARY KEY, pet_id TEXT, card_id TEXT, vaccine TEXT, brand TEXT, batch TEXT, date TEXT, next_due TEXT, done INTEGER DEFAULT 1, vet_id TEXT, recorded_by TEXT, appt_id TEXT, consultation_id TEXT)");
 
 $creds = [];
 foreach ([['admin', 'Ada', 'Admin', 'admin1'], ['vet', 'Vic', 'Vet', 'vet1'], ['assistant', 'Asa', 'Desk', 'asst1']] as [$role, $first, $last, $id]) {

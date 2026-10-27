@@ -134,7 +134,6 @@ $filteredTotal = count($reports);
   <div class="card checklist-card" style="border-left: 5px solid #16a34a;">
     <div class="card-title">
       <span>📋 Mandatory Technical Checklist Verification (10 of 10 Verified)</span>
-      <span class="badge" style="background:#16a34a; color:white;">Rubric: 100 / 100</span>
     </div>
     <ul class="checklist">
       <li>✔ PHP backend connected to MySQL database (PDO)</li>

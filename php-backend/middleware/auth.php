@@ -4,16 +4,23 @@
  * Satisfies Account Credentials & System Security Rubric
  */
 
+require_once __DIR__ . '/../config/database.php';
+
 if (session_status() === PHP_SESSION_NONE) {
+    // Behind a proxy (Render, Vercel) the browser connection is HTTPS even when PHP only sees HTTP.
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
     session_set_cookie_params([
         'httponly' => true,
         'samesite' => 'Lax',
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'secure' => $https,
     ]);
+    if (strtolower((string) getenv('SESSION_STORE')) === 'db') {
+        require_once __DIR__ . '/../config/session_store.php';
+        session_set_save_handler(new DbSessionHandler(Database::getConnection()), true);
+    }
     session_start();
 }
-
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/schema.php';
 
 class AuthMiddleware {
     /**
@@ -23,7 +30,8 @@ class AuthMiddleware {
         // 1. Check PHP Session (the database is only opened when there is something to verify)
         if (!empty($_SESSION['user_id'])) {
             $pdo = Database::getConnection();
-            $stmt = $pdo->prepare("SELECT id, first_name, last_name, email, role, vet_id, owner_id FROM users WHERE id = ? AND is_locked = 0");
+            Schema::ensure($pdo);
+            $stmt = $pdo->prepare("SELECT id, first_name, last_name, email, role, vet_id, owner_id FROM users WHERE id = ? AND is_locked = 0 AND is_active = 1");
             $stmt->execute([$_SESSION['user_id']]);
             $user = $stmt->fetch();
             if ($user) return $user;
@@ -41,12 +49,13 @@ class AuthMiddleware {
 
         if ($token) {
             $pdo = Database::getConnection();
+            Schema::ensure($pdo);
             $tokenHash = hash('sha256', $token);
             $stmt = $pdo->prepare("
                 SELECT u.id, u.first_name, u.last_name, u.email, u.role, u.vet_id, u.owner_id
                 FROM sessions s
                 JOIN users u ON u.id = s.user_id
-                WHERE s.token_hash = ? AND s.expires_at > NOW() AND u.is_locked = 0
+                WHERE s.token_hash = ? AND s.expires_at > NOW() AND u.is_locked = 0 AND u.is_active = 1
             ");
             $stmt->execute([$tokenHash]);
             $user = $stmt->fetch();

@@ -13,6 +13,8 @@ class Schema {
         self::column($pdo, 'users', 'access_revision', 'INT NOT NULL DEFAULT 0');
         self::column($pdo, 'users', 'access_reason', 'VARCHAR(300) DEFAULT NULL');
         self::column($pdo, 'clinic_catalog_items', 'status_reason', 'VARCHAR(300) DEFAULT NULL');
+        self::column($pdo, 'appointments', 'payment_reference', 'VARCHAR(100) DEFAULT NULL');
+        self::column($pdo, 'consultations', 'follow_up_date', 'DATE DEFAULT NULL');
         $pdo->exec("CREATE TABLE IF NOT EXISTS vaccination_reminders (
             id VARCHAR(50) NOT NULL PRIMARY KEY,
             vaccination_id VARCHAR(50) NOT NULL,

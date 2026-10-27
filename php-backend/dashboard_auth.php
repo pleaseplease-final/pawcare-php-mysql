@@ -21,8 +21,12 @@ function dashboardCsrfValid(): bool {
     return !empty($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string) ($_POST['csrf'] ?? ''));
 }
 
+// The portal for pet owners (portal.php) reuses this gate by setting $dashboardRoles, $dashboardSelf and the wording before including it.
+$dashboardRoles = $dashboardRoles ?? DASHBOARD_ROLES;
+if (!empty($dashboardSkipGate)) return; // portal.php: public pages such as registration
+
 // Staff pages share this sign-in; after signing in the user returns to the page they asked for.
-$dashboardSelf = in_array(basename((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH)), ['console.php', 'console'], true) ? 'console.php' : 'dashboard.php';
+$dashboardSelf = $dashboardSelf ?? (in_array(basename((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH)), ['console.php', 'console'], true) ? 'console.php' : 'dashboard.php');
 $dashboardError = '';
 $dashboardEmail = '';
 $action = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['action'] ?? '') : '';
@@ -31,7 +35,7 @@ $action = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string) ($_POST['action'] ?? 
 if ($action === 'logout' && dashboardCsrfValid()) {
     $_SESSION = [];
     if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
-    header('Location: dashboard.php');
+    header('Location: ' . $dashboardSelf);
     exit;
 }
 
@@ -49,14 +53,14 @@ if ($action === 'login') {
         AuthController::login();
         $result = json_decode((string) ob_get_clean(), true) ?: [];
         http_response_code(200);
-        if (!empty($result['success']) && in_array($result['user']['role'] ?? '', DASHBOARD_ROLES, true)) {
+        if (!empty($result['success']) && in_array($result['user']['role'] ?? '', $dashboardRoles, true)) {
             header('Location: ' . $dashboardSelf);
             exit;
         }
         if (!empty($result['success'])) {
-            // A pet owner signed in correctly but may not view clinic reports.
+            // Right password, wrong door: staff and pet owners each have their own page.
             $_SESSION = [];
-            $dashboardError = 'This dashboard is for clinic staff only.';
+            $dashboardError = $dashboardRoles === ['owner'] ? 'This is the pet owner portal. Clinic staff sign in at the staff console.' : 'This is the staff console. Pet owners sign in at the owner portal (portal.php).';
         } else {
             $dashboardError = (string) ($result['error'] ?? 'Unable to sign in.');
         }
@@ -64,7 +68,7 @@ if ($action === 'login') {
 }
 
 $currentUser = AuthMiddleware::getCurrentUser();
-if ($currentUser && in_array($currentUser['role'], DASHBOARD_ROLES, true)) {
+if ($currentUser && in_array($currentUser['role'], $dashboardRoles, true)) {
     return; // signed in: the dashboard continues
 }
 
@@ -77,7 +81,7 @@ http_response_code($currentUser ? 403 : 401);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
-  <title>PawCare staff sign in</title>
+  <title><?= dashboardEscape($dashboardHeading ?? 'PawCare staff sign in') ?></title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { min-height: 100vh; display: grid; place-items: center; background: #f1f5f9; padding: 20px; color: #0f172a; }
@@ -93,8 +97,8 @@ http_response_code($currentUser ? 403 : 401);
 </head>
 <body>
   <form method="POST" action="<?= dashboardEscape($dashboardSelf) ?>" autocomplete="on">
-    <h1>PawCare staff sign in</h1>
-    <p class="sub">Clinic reports are available to signed-in staff only.</p>
+    <h1><?= dashboardEscape($dashboardHeading ?? 'PawCare staff sign in') ?></h1>
+    <p class="sub"><?= dashboardEscape($dashboardSub ?? 'Clinic reports are available to signed-in staff only.') ?></p>
     <input type="hidden" name="action" value="login">
     <input type="hidden" name="csrf" value="<?= dashboardEscape(dashboardCsrf()) ?>">
     <label for="email">Email</label>
@@ -103,6 +107,7 @@ http_response_code($currentUser ? 403 : 401);
     <input id="password" name="password" type="password" required maxlength="128" autocomplete="current-password">
     <?php if ($dashboardError): ?><p class="err" role="alert"><?= dashboardEscape($dashboardError) ?></p><?php endif; ?>
     <button type="submit">Sign in</button>
+    <?php if (!empty($dashboardLinks)): ?><p class="sub" style="margin:16px 0 0"><?= $dashboardLinks ?></p><?php endif; ?>
   </form>
 </body>
 </html>

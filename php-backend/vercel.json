@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/index.php": { "runtime": "vercel-php@0.7.3", "maxDuration": 30 }
+  },
+  "routes": [
+    { "src": "/(.*)", "dest": "/api/index.php" }
+  ],
+  "crons": [
+    { "path": "/api/jobs/reminders", "schedule": "0 1 * * *" }
+  ]
+}

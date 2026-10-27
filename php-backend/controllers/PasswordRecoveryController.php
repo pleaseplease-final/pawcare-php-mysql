@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/validator.php';
 require_once __DIR__ . '/../config/notifier.php';
+require_once __DIR__ . '/../config/schema.php';
 
 class PasswordRecoveryController {
     private const UNREGISTERED = 'No account is registered with this email. Please create an account.';
@@ -33,7 +34,8 @@ class PasswordRecoveryController {
     }
 
     private static function findUser(PDO $pdo, string $email): ?array {
-        $stmt = $pdo->prepare('SELECT id, first_name, last_name, email, role, mobile_number, mobile_verified FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
+        Schema::ensure($pdo);
+        $stmt = $pdo->prepare('SELECT id, first_name, last_name, email, role, mobile_number, mobile_verified, is_active FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
         $stmt->execute([$email]);
         return $stmt->fetch() ?: null;
     }
@@ -65,6 +67,10 @@ class PasswordRecoveryController {
             self::json(404, ['success' => false, 'unregistered' => true, 'error' => self::UNREGISTERED]);
             return;
         }
+        if ((int) ($user['is_active'] ?? 1) === 0) {
+            self::json(403, ['success' => false, 'deactivated' => true, 'error' => 'This account is deactivated. Contact the clinic administrator.']);
+            return;
+        }
         $channels = [['id' => 'email', 'label' => 'Email', 'destination' => self::maskEmail($user['email'])]];
         if (self::smsReady($user)) $channels[] = ['id' => 'sms', 'label' => 'Text message', 'destination' => self::maskPhone($user['mobile_number'])];
         self::json(200, ['success' => true, 'channels' => $channels]);
@@ -84,6 +90,10 @@ class PasswordRecoveryController {
         $user = self::findUser($pdo, $email);
         if (!$user) {
             self::json(404, ['success' => false, 'unregistered' => true, 'error' => self::UNREGISTERED]);
+            return;
+        }
+        if ((int) ($user['is_active'] ?? 1) === 0) {
+            self::json(403, ['success' => false, 'deactivated' => true, 'error' => 'This account is deactivated. Contact the clinic administrator.']);
             return;
         }
         if ($channel === 'sms' && !self::smsReady($user)) {
@@ -139,6 +149,10 @@ class PasswordRecoveryController {
         $invalid = 'The code is incorrect, expired or already used. Request a new code.';
         if (!$user) {
             self::json(404, ['success' => false, 'unregistered' => true, 'error' => self::UNREGISTERED]);
+            return;
+        }
+        if ((int) ($user['is_active'] ?? 1) === 0) {
+            self::json(403, ['success' => false, 'deactivated' => true, 'error' => 'This account is deactivated. Contact the clinic administrator.']);
             return;
         }
 

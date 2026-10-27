@@ -2,12 +2,12 @@
 
 A web system for a veterinary clinic with four roles: pet owner, front-desk assistant, veterinarian and administrator.
 
-There are two back ends in this repository:
+**The system is PHP + MySQL.** Everything the clinic uses (sign-in, owners, patients, appointments, services and products, reminders, reports, account management) runs from `php-backend/` against a MySQL database. Deploy it with the steps below; the address you open is the PHP service (`/console`).
 
-| Back end | Location | Database | Used for |
+| Part | Location | Database | Status |
 |---|---|---|---|
-| **PHP + MySQL** | `php-backend/` | MySQL (PDO) | Authentication, owners, pets, appointments, consultations, vaccinations, reports (CSV export and print), clinic profile |
-| Node.js + PostgreSQL | `server/`, `api/` | PostgreSQL | The full React portals (deployed on Vercel) |
+| **PHP + MySQL (the system)** | `php-backend/` | MySQL (PDO) | In use |
+| React + Node.js (earlier prototype) | `src/`, `server/`, `api/` | PostgreSQL | Not used by the PHP system. Keep it switched off in production (remove `DATABASE_URL` and pause the Vercel project) so nothing writes to PostgreSQL. |
 
 ## Running the PHP + MySQL back end
 
@@ -15,6 +15,20 @@ There are two back ends in this repository:
 2. Copy `.env.example` to `.env` and set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`. Set `CORS_ORIGINS` only if another site must call the API.
 3. Start it: `npm run php:serve` (API) or `npm run php:dashboard` (reports dashboard).
 4. Check the connection: `npm run php:test`.
+
+### Deploying the PHP + MySQL system on Vercel
+Vercel does not run PHP by itself. `php-backend/vercel.json` uses the community `vercel-php` runtime, which runs the PHP code as serverless functions. Use your existing Vercel project:
+
+1. **Project > Settings > General > Root Directory:** set it to `php-backend` and save. Vercel then ignores the Node app in the repository root. Under *Build & Development Settings* set the Framework Preset to **Other** and leave the Build Command and Output Directory empty.
+2. **Project > Settings > Environment Variables.** Delete `DATABASE_URL` (the old PostgreSQL one). Add:
+   - `DB_HOST`, `DB_PORT` (4000 for TiDB), `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSL=true`
+   - `SESSION_STORE=db` (sessions live in the database, because every request runs on a fresh server)
+   - `CRON_SECRET` (a long random string; Vercel sends it automatically with the daily reminder job in `vercel.json`)
+   - `TEXTBEE_API_KEY` and `TEXTBEE_DEVICE_ID` for text-message codes and reminders; `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` for email
+3. **Deployments > Redeploy.** Then open `https://<your-project>.vercel.app/` (it opens the console).
+4. If the build says the runtime was not found, look up the current version number at github.com/juicyfx/vercel-php and change `vercel-php@0.7.3` in `php-backend/vercel.json`.
+
+Limits to know: files cannot be saved on Vercel (the local `storage/outbox.log` fallback does not exist there, so recovery codes need a real email or text provider), and a function may run for at most 30 seconds, which is plenty for the reminder job at clinic size.
 
 ### Deploying the PHP + MySQL back end (Render or Railway)
 Vercel serves the Node app only. The PHP code runs in its own container, using `php-backend/Dockerfile`.
@@ -42,12 +56,18 @@ To create the first administrator, make a hash and store it on the user row:
 ### Staff console and reports (PHP-rendered pages)
 Open `php-backend/console.php` (or `/console` through `index.php`) and sign in with a staff account.
 
-| Page | Add | Edit | Delete | Search / filter |
+| Page | Add | Edit | Remove | Search / filter |
 |---|---|---|---|---|
-| Owners | admin, assistant | admin, assistant | admin (only owners with no patients) | name, email, mobile, address |
-| Patients | admin, assistant, vet | admin, assistant, vet | admin (only patients with no visits or records) | name, breed, owner, species |
-| Appointments | admin, assistant, vet | admin, assistant, vet | admin (not started or paid visits) | patient, owner, reason, status, date range |
-| Staff accounts | admin | admin (role, password, unlock) | admin (not yourself, not the last admin) | name, email, role |
+| Owners | admin, assistant | admin, assistant | admin deletes (only owners with no patients) | name, email, mobile, address |
+| Patients | admin, assistant, vet | admin, assistant, vet | admin deletes (only patients with no visits or records) | name, breed, owner, species |
+| Appointments | admin, assistant, vet | admin, assistant, vet | admin deletes (not started or paid visits) | patient, owner, reason, status, date range |
+| User accounts (staff and pet owners) | admin | admin | **soft delete**: Deactivate / Reactivate / Unlock, with a reason, a review and a confirmation | name, email, role; chips for All / Active / Deactivated / Locked |
+| Services & products | admin | admin (price, unit, description) | **soft delete**: Retire / Restore, with a reason, a review and a confirmation | name, category; chips for Active / Retired / All |
+| Reminders | read: admin, assistant, vet | none | admin presses "Run reminders now" | status cards and items that need attention |
+
+**Soft delete and automatic logout.** Deactivating an account asks the administrator to choose a reason from a list (an explanation is required for "Other"), shows a review of exactly what will change, then asks for confirmation. The account's sessions are deleted and every sign-in check refuses inactive accounts, so a veterinarian, assistant, pet owner or administrator who is signed in is logged out on their next request. The account, its history and the reason stay in the database, and the change is written to the audit trail. A retired price-list item stays on past bills but is no longer offered. Nothing in these two pages is hard-deleted.
+
+**Automatic vaccination recall reminders.** `config/reminders.php` reminds the owner 30, 14 and 3 days before a booster date (`vaccinations.next_due`) by email and text message. Only the closest milestone is sent, and a reminder is never sent twice. Run it daily by any of: `php php-backend/scripts/send_reminders.php`; a scheduler that calls `GET /api/jobs/reminders` with `Authorization: Bearer <CRON_SECRET>` (a free cron service works); or the "Run reminders now" button. The Reminders page shows "Worker needs checking" until a run has completed, which is the sign that nothing has scheduled it yet.
 
 `php-backend/dashboard.php` is the reports page: filters by date range, status and species, totals, CSV export and print, all read from MySQL. Both pages require a sign-in; visitors who are not signed in see only the login form.
 
@@ -60,7 +80,7 @@ Open `php-backend/console.php` (or `/console` through `index.php`) and sign in w
 
 ### Testing the PHP back end
 - `npm run php:unit` runs the validation rules (34 checks, no database).
-- `npm run php:e2e` starts the PHP code against a throwaway SQLite file and runs 126 HTTP checks: valid and invalid input for every form, duplicate prevention, delete protection, role restrictions, CSRF, login lockout, password recovery by text message, reports with filters and CSV export, and access without signing in. It never touches your MySQL database or `.env`.
+- `npm run php:e2e` starts the PHP code against a throwaway SQLite file and runs 180 HTTP checks: valid and invalid input for every form, duplicate prevention, delete protection, role restrictions, CSRF, login lockout, password recovery by text message, reports with filters and CSV export, and access without signing in. It never touches your MySQL database or `.env`.
 
 ## Security summary (PHP back end)
 - Passwords: `password_hash()` / `password_verify()`, at least 12 characters with upper, lower, number and symbol. Accounts lock for 15 minutes after 3 wrong passwords, at sign-in or when changing a password. Changing a password requires the current one, must differ from it, and signs out other sessions.

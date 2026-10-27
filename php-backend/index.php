@@ -46,12 +46,30 @@ if (empty($path)) $path = '/';
 
 try {
     // 0. Interactive Dashboard & Evaluation Portal
-    if ($path === '/' || $path === '/dashboard' || $path === '/dashboard.php') {
+    if ($path === '/') {
+        header('Location: /console.php');
+        exit;
+    }
+    if ($path === '/dashboard' || $path === '/dashboard.php') {
         header('Content-Type: text/html; charset=UTF-8');
         require __DIR__ . '/dashboard.php';
         exit;
     }
 
+    if ($path === '/api/jobs/reminders' && $method === 'GET') {
+        $secret = (string) getenv('CRON_SECRET');
+        if ($secret === '') { http_response_code(503); echo json_encode(['success' => false, 'error' => 'The reminder scheduler is not configured. Set CRON_SECRET.']); exit; }
+        $supplied = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        if (!hash_equals('Bearer ' . $secret, $supplied)) { http_response_code(401); echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        require_once __DIR__ . '/config/reminders.php';
+        echo json_encode(['success' => true] + Reminders::run(Database::getConnection()));
+        exit;
+    }
+    if ($path === '/portal' || $path === '/portal.php') {
+        header('Content-Type: text/html; charset=UTF-8');
+        require __DIR__ . '/portal.php';
+        exit;
+    }
     if ($path === '/console' || $path === '/console.php') {
         header('Content-Type: text/html; charset=UTF-8');
         require __DIR__ . '/console.php';
