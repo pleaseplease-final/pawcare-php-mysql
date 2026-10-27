@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useClinicRead } from '../useClinicRead.js';
 import { api } from '../api.js';
 import { STAFF_ROLES, staffRoleLabel } from '../staffRoles.js';
+import { ACCESS_REASONS, OTHER, reasonErrors } from '../accessReasons.js';
 import {
   Shield,
   UserCheck,
@@ -27,8 +28,26 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
-  User
+  User,
+  Pencil,
+  Archive,
+  ArchiveRestore
 } from 'lucide-react';
+
+// Archived accounts are always deactivated; they leave the everyday list but keep their history.
+const staffStatus = u => u.archived ? 'archived' : !u.active ? 'deactivated' : u.locked ? 'locked' : 'active';
+const STATUS_FILTERS = [['all', 'All'], ['active', 'Active'], ['deactivated', 'Deactivated'], ['locked', 'Locked'], ['archived', 'Archived']];
+const ACTION_LABELS = { deactivate: 'Deactivate', reactivate: 'Reactivate', unlock: 'Unlock', archive: 'Archive', unarchive: 'Restore from archive', role: 'Edit role', revoke: 'Revoke invitation' };
+const ACTION_HELP = {
+  deactivate: 'This staff member will immediately lose clinic portal access. A veterinarian must hand off active consultation queues first. Reception must reassign upcoming visits.',
+  reactivate: 'Portal access will be restored; existing password and 2FA credentials remain intact. The staff member can sign in again.',
+  unlock: 'Clears security lock counters and requires a fresh login. Verification requirements still apply.',
+  archive: 'The account moves to the Archived list. It stays deactivated and cannot sign in, but its visits, notes and audit history are kept. You can restore it later.',
+  unarchive: 'The account returns to the staff list as Deactivated. Reactivate it separately if the person needs to sign in again.',
+  role: 'The new role takes effect immediately. The staff member is signed out and sees the new workspace at their next sign-in.',
+  revoke: 'This invitation activation link will immediately expire and cannot be redeemed.',
+};
+const DANGER_ACTIONS = ['deactivate', 'archive', 'revoke'];
 
 export function useAdminStaff() {
   return useClinicRead('/api/admin/staff', 15000);
@@ -38,6 +57,9 @@ export default function AdminStaff({ onInvite }) {
   const { data, error, loading, load } = useAdminStaff();
   const [filter, setFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [reasonCode, setReasonCode] = useState('');
+  const [newRole, setNewRole] = useState('');
   const [target, setTarget] = useState(null);
   const [selected,setSelected]=useState(null);
   const [reason, setReason] = useState('');
@@ -49,6 +71,8 @@ export default function AdminStaff({ onInvite }) {
   const choose = (person, action) => {
     setTarget({ ...person, action });
     setReason('');
+    setReasonCode('');
+    setNewRole(action === 'role' ? Object.keys(STAFF_ROLES).find(r => r !== person.role) : '');
     setSaveError('');
     setNotice('');
   };
@@ -56,18 +80,24 @@ export default function AdminStaff({ onInvite }) {
   const save = async (e) => {
     e.preventDefault();
     if (busy.current) return;
+    const errors = reasonErrors(ACCESS_REASONS[target.action], { reasonCode, reasonNote: reason });
+    if (Object.keys(errors).length) { setSaveError(Object.values(errors)[0]); return; }
     busy.current = true;
     setSaving(true);
     setSaveError('');
     try {
-      const path = target.action === 'revoke'
-        ? `/api/admin/invitations/${encodeURIComponent(target.id)}/revoke`
-        : `/api/admin/staff/${encodeURIComponent(target.id)}/access`;
-      const result = await api.post(path, { action: target.action, revision: target.revision, reason: reason.trim() });
+      const id = encodeURIComponent(target.id), body = { revision: target.revision, reasonCode, reasonNote: reason.trim() };
+      const result = target.action === 'revoke' ? await api.post(`/api/admin/invitations/${id}/revoke`, body)
+        : target.action === 'role' ? await api.put(`/api/admin/staff/${id}`, { ...body, role: newRole })
+        : await api.post(`/api/admin/staff/${id}/access`, { ...body, action: target.action });
       if (result?.success !== true) {
         throw Error("The server did not confirm this access change. Refresh staff to check its current status.");
       }
-      setNotice(target.action === 'revoke' ? 'Invitation successfully revoked.' : `${target.name}: ${target.action} saved. Existing sessions were terminated; staff member must re-authenticate.`);
+      setNotice(target.action === 'revoke' ? 'Invitation successfully revoked.'
+        : target.action === 'role' ? `${target.name} is now ${staffRoleLabel(newRole)}. Existing sessions were terminated; they must sign in again.`
+        : target.action === 'archive' ? `${target.name} was archived. Find the account under the Archived filter.`
+        : target.action === 'unarchive' ? `${target.name} was restored from the archive and is deactivated.`
+        : `${target.name}: ${target.action} saved. Existing sessions were terminated; staff member must re-authenticate.`);
       setTarget(null);
       await load();
     } catch (e) {
@@ -81,8 +111,16 @@ export default function AdminStaff({ onInvite }) {
   const staff = (data?.staff || []).filter(u => {
     const matchesQuery = `${u.name} ${u.email} ${u.role} ${u.vetId || ''}`.toLowerCase().includes(filter.toLowerCase());
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-    return matchesQuery && matchesRole;
+    const status = staffStatus(u);
+    const matchesStatus = statusFilter === 'all' ? status !== 'archived' : status === statusFilter;
+    return matchesQuery && matchesRole && matchesStatus;
   });
+  const statusCounts = (data?.staff || []).reduce((counts, u) => {
+    const status = staffStatus(u);
+    counts[status] = (counts[status] || 0) + 1;
+    if (status !== 'archived') counts.all = (counts.all || 0) + 1;
+    return counts;
+  }, {});
 
   const invitations = data?.invitations || [];
   const detail=selected && (selected.kind==='staff'?data?.staff:invitations)?.find(p=>p.id===selected.id);
@@ -159,6 +197,23 @@ export default function AdminStaff({ onInvite }) {
               </button>
             ))}
           </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }} role="group" aria-label="Filter by account status">
+            <span style={{ fontSize: "calc(12px * var(--fs, 1))", color: "#64748b", fontWeight: 600 }}>Status:</span>
+            {STATUS_FILTERS.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={statusFilter === key}
+                className={`btn sm ${statusFilter === key ? 'gold' : 'ghost'}`}
+                onClick={() => setStatusFilter(key)}
+                style={{ fontSize: "calc(11.5px * var(--fs, 1))", padding: "4px 10px", borderRadius: "99px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+              >
+                {key === 'archived' && <Archive size={12} />}
+                <span>{label} ({statusCounts[key] || 0})</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {notice && (
@@ -188,11 +243,11 @@ export default function AdminStaff({ onInvite }) {
           ) : data && !staff.length ? (
             <div className="empty sm" style={{ padding: "32px 16px" }}>
               <p style={{ margin: 0, fontWeight: 600, color: "#64748b" }}>
-                {filter.trim() ? "No staff accounts match your search filter." : "No staff accounts found. Click '+ Invite Staff Member' to get started."}
+                {statusFilter === 'archived' && !filter.trim() ? "No archived staff accounts." : filter.trim() || statusFilter !== 'all' || roleFilter !== 'all' ? "No staff accounts match these filters." : "No staff accounts found. Click '+ Invite Staff Member' to get started."}
               </p>
             </div>
           ) : (
-            <PaginatedList label="Staff accounts" resetKey={[filter,roleFilter]} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%,320px), 1fr))", gap: "14px" }}>
+            <PaginatedList label="Staff accounts" resetKey={[filter,roleFilter,statusFilter]} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%,320px), 1fr))", gap: "14px" }}>
               {staff.map(u => {
                 const isVet = u.role === 'vet';
                 const initials = (u.name || "U").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -203,7 +258,8 @@ export default function AdminStaff({ onInvite }) {
                     key={u.id}
                     style={{
                       background: "#ffffff",
-                      border: `1.5px solid ${!u.active ? "#cbd5e1" : u.locked ? "#fca5a5" : "#e2e8f0"}`,
+                      border: `1.5px ${u.archived ? "dashed" : "solid"} ${!u.active ? "#cbd5e1" : u.locked ? "#fca5a5" : "#e2e8f0"}`,
+                      opacity: u.archived ? 0.85 : 1,
                       borderRadius: "16px",
                       padding: "18px",
                       boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
@@ -268,7 +324,7 @@ export default function AdminStaff({ onInvite }) {
                             color: !u.active ? "#64748b" : u.locked ? "#dc2626" : "#059669",
                             border: `1px solid ${!u.active ? "#cbd5e1" : u.locked ? "#fecaca" : "#a7f3d0"}`
                           }}>
-                            {!u.active ? "○ Inactive" : u.locked ? "Locked" : "● Active"}
+                            {u.archived ? "Archived" : !u.active ? "○ Inactive" : u.locked ? "Locked" : "● Active"}
                           </span>
                         </div>
                       </div>
@@ -296,6 +352,27 @@ export default function AdminStaff({ onInvite }) {
 
                     {/* Actions Row */}
                     {u.self ? <div style={{ paddingTop: "12px", borderTop: "1px solid #f1f5f9", fontSize: "calc(12px * var(--fs, 1))", color: "#64748b" }}>This is your account. Another administrator manages your access.</div> : <div style={{ display: "flex", gap: "8px", paddingTop: "12px", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
+                      {u.archived ? (
+                        <button
+                          type="button"
+                          className="btn sm gold"
+                          style={{ fontSize: "calc(12px * var(--fs, 1))", padding: "4px 10px", flex: 1 }}
+                          onClick={() => choose(u, 'unarchive')}
+                        >
+                          <ArchiveRestore size={13} style={{ marginRight: 4 }} />
+                          <span>Restore from archive</span>
+                        </button>
+                      ) : <>
+                      <button
+                        type="button"
+                        className="btn sm ghost"
+                        style={{ fontSize: "calc(12px * var(--fs, 1))", padding: "4px 10px" }}
+                        aria-label={`Edit role for ${u.name}`}
+                        onClick={() => choose(u, 'role')}
+                      >
+                        <Pencil size={13} style={{ marginRight: 4 }} />
+                        <span>Edit role</span>
+                      </button>
                       <button
                         type="button"
                         className={`btn sm ${u.active ? 'ghost' : 'gold'}`}
@@ -305,6 +382,19 @@ export default function AdminStaff({ onInvite }) {
                         {u.active ? <UserX size={13} style={{ marginRight: 4 }} /> : <UserCheck size={13} style={{ marginRight: 4 }} />}
                         <span>{u.active ? 'Deactivate' : 'Reactivate'}</span>
                       </button>
+                      {!u.active && (
+                        <button
+                          type="button"
+                          className="btn sm ghost"
+                          style={{ fontSize: "calc(12px * var(--fs, 1))", padding: "4px 10px", color: "#b91c1c", borderColor: "#fecaca" }}
+                          aria-label={`Archive ${u.name}`}
+                          onClick={() => choose(u, 'archive')}
+                        >
+                          <Archive size={13} style={{ marginRight: 4 }} />
+                          <span>Archive</span>
+                        </button>
+                      )}
+                      </>}
 
                       {u.active && u.locked && (
                         <button
@@ -433,31 +523,47 @@ export default function AdminStaff({ onInvite }) {
         <div className="scrim" onMouseDown={e => e.target === e.currentTarget && !saving && setTarget(null)}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="access-title" style={{ width: "min(540px, 100%)", borderRadius: "18px", padding: "26px" }}>
             <h3 id="access-title" style={{ margin: "0 0 6px", fontSize: "calc(18px * var(--fs, 1))", color: "var(--navy, #0f172a)", fontWeight: 700 }}>
-              {target.action[0].toUpperCase() + target.action.slice(1)}: {target.name}
+              {ACTION_LABELS[target.action]}: {target.name || target.email}
             </h3>
-            
+
             <p style={{ margin: "0 0 16px", fontSize: "calc(13px * var(--fs, 1))", color: "#475569", lineHeight: 1.5 }}>
-              {target.action === 'deactivate'
-                ? 'This staff member will immediately lose clinic portal access. A veterinarian must hand off active consultation queues first. Reception must reassign upcoming visits.'
-                : target.action === 'reactivate'
-                ? 'Portal access will be restored; existing password and 2FA credentials remain intact. The staff member can sign in again.'
-                : target.action === 'unlock'
-                ? 'Clears security lock counters and requires a fresh login. Verification requirements still apply.'
-                : 'This invitation activation link will immediately expire and cannot be redeemed.'}
+              {ACTION_HELP[target.action]}
             </p>
 
             <form onSubmit={save}>
+              {target.action === 'role' && (
+                <div className="fld" style={{ marginBottom: "16px" }}>
+                  <label htmlFor="access-role" style={{ fontWeight: 600, fontSize: "calc(12.5px * var(--fs, 1))" }}>
+                    New role<i> *</i>
+                  </label>
+                  <select id="access-role" value={newRole} onChange={e => setNewRole(e.target.value)} disabled={saving} style={{ width: "100%" }}>
+                    {Object.entries(STAFF_ROLES).filter(([key]) => key !== target.role).map(([key, r]) => <option key={key} value={key}>{r.label} — {r.blurb}</option>)}
+                  </select>
+                  <span style={{ fontSize: "calc(11px * var(--fs, 1))", color: "#64748b", marginTop: "3px", display: "block" }}>
+                    Current role: {staffRoleLabel(target.role)}
+                  </span>
+                </div>
+              )}
+              <div className="fld" style={{ marginBottom: "12px" }}>
+                <label htmlFor="access-reason-code" style={{ fontWeight: 600, fontSize: "calc(12.5px * var(--fs, 1))" }}>
+                  Reason<i> *</i>
+                </label>
+                <select id="access-reason-code" required value={reasonCode} onChange={e => setReasonCode(e.target.value)} disabled={saving} style={{ width: "100%" }}>
+                  <option value="">Choose a reason…</option>
+                  {ACCESS_REASONS[target.action].map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                </select>
+              </div>
               <div className="fld" style={{ marginBottom: "16px" }}>
                 <label htmlFor="access-reason" style={{ fontWeight: 600, fontSize: "calc(12.5px * var(--fs, 1))" }}>
-                  Administrative Reason<i> *</i>
+                  {reasonCode === OTHER ? <>Explanation<i> *</i></> : 'Note (optional)'}
                 </label>
                 <LiveControl as="textarea"
                   id="access-reason"
-                  aria-label="Access change reason"
-                  required
-                  maxLength={300}
+                  aria-label="Access change note"
+                  required={reasonCode === OTHER}
+                  maxLength={200}
                   rows={3}
-                  placeholder="Enter the official reason for this access change (e.g. Leave of absence, staff departure, identity re-verified)..."
+                  placeholder="Add details for the audit trail (e.g. last working day, ticket number)…"
                   value={reason}
                   onChange={e => setReason(e.target.value)}
                   disabled={saving}
@@ -485,10 +591,10 @@ export default function AdminStaff({ onInvite }) {
                 </button>
                 <button
                   type="submit"
-                  className={target.action === 'deactivate' || target.action === 'revoke' ? 'btn danger' : 'btn gold'}
-                  disabled={saving || !reason.trim()}
+                  className={DANGER_ACTIONS.includes(target.action) ? 'btn danger' : 'btn gold'}
+                  disabled={saving || !reasonCode || (reasonCode === OTHER && !reason.trim()) || (target.action === 'role' && !newRole)}
                 >
-                  {saving ? 'Saving...' : `Confirm ${target.action[0].toUpperCase() + target.action.slice(1)}`}
+                  {saving ? 'Saving...' : target.action === 'role' ? 'Save role change' : `Confirm ${ACTION_LABELS[target.action].toLowerCase()}`}
                 </button>
               </div>
             </form>
@@ -507,7 +613,7 @@ function StaffDetails({person,kind,onClose,onAction}) {
     return ()=>{element.close();if(previous?.isConnected)previous.focus({preventScroll:true});};
   },[]);
   const invitation=kind==='invitation';
-  const status=invitation?person.status:!person.active?'Inactive':person.locked?'Locked':'Active';
+  const status=invitation?person.status:person.archived?'Archived':!person.active?'Inactive':person.locked?'Locked':'Active';
   return <dialog ref={dialog} className="staff-details-dialog" aria-labelledby="staff-details-title" onCancel={onClose} onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)onClose();}}}>
     <header><span className="admin-eyebrow">{invitation?'Staff invitation':'Staff account'}</span><h2 id="staff-details-title">{person.name || person.email}</h2><p>Review {invitation?'invitation status and activation expiry':'account access and verification'}.</p></header>
     <dl className="staff-detail-fields">
@@ -517,6 +623,7 @@ function StaffDetails({person,kind,onClose,onAction}) {
       {invitation?<div><dt>Activation link expires</dt><dd>{new Date(person.expiresAt).toLocaleString('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'})} · Manila</dd></div>:<>
         {person.vetId&&<div><dt>Doctor ID</dt><dd>{person.vetId}</dd></div>}
         <div><dt>Mobile verification</dt><dd>{person.mobileVerified?'Verified':'Pending SMS verification'}</dd></div>
+        {person.archivedAt&&<div><dt>Archived on</dt><dd>{new Date(person.archivedAt).toLocaleString('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'})} · Manila</dd></div>}
         {person.lockedUntil&&<div><dt>Lock expires</dt><dd>{new Date(person.lockedUntil).toLocaleString('en-PH',{timeZone:'Asia/Manila'})} · Manila</dd></div>}
         <div><dt>Last access note</dt><dd>{person.reason || 'No access note recorded.'}</dd></div>
       </>}
@@ -524,8 +631,10 @@ function StaffDetails({person,kind,onClose,onAction}) {
     {invitation&&<p className="staff-detail-note">{status==='Pending'?'The recipient must open their emailed activation link to set a password and verify their mobile number.':status==='Accepted'?'This invitation has already been accepted.':'This link cannot be used. Create a new invitation if access is still needed.'}</p>}
     <footer className="row end">
       <button type="button" className="btn ghost" autoFocus onClick={onClose}>Close details</button>
-      {invitation?status==='Pending'&&<button type="button" className="btn danger" onClick={()=>onAction('revoke')}>Revoke link</button>:<>
+      {invitation?status==='Pending'&&<button type="button" className="btn danger" onClick={()=>onAction('revoke')}>Revoke link</button>:person.self?null:person.archived?<button type="button" className="btn gold" onClick={()=>onAction('unarchive')}>Restore from archive</button>:<>
+        <button type="button" className="btn ghost" onClick={()=>onAction('role')}>Edit role</button>
         {person.active&&person.locked&&<button type="button" className="btn ghost" onClick={()=>onAction('unlock')}>Unlock account</button>}
+        {!person.active&&<button type="button" className="btn danger" onClick={()=>onAction('archive')}>Archive</button>}
         <button type="button" className={`btn ${person.active?'danger':'gold'}`} onClick={()=>onAction(person.active?'deactivate':'reactivate')}>{person.active?'Deactivate':'Reactivate'}</button>
       </>}
     </footer>

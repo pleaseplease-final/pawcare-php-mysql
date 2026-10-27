@@ -3,6 +3,8 @@ import express from 'express';
 import { query, withTransaction } from '../db.js';
 import { ensureStaffAccessSchema } from '../staffAccess.js';
 import { ensureAdmissionsSchema } from '../admissions.js';
+import { randomHex } from '../security.js';
+import { STAFF_ROLES } from '../../src/staffRoles.js';
 import { refreshManagedCatalog } from '../clinicCatalog.js';
 import { priceCatalog } from '../priceCatalog.js';
 import { catalogErrors, idFor } from '../../src/catalogRules.js';
@@ -34,17 +36,17 @@ adminRouter.get('/staff/email-availability',async(req,res)=>{
 adminRouter.get('/staff',async(req,res)=>{
  try {
   const [staff,invitations,count]=await Promise.all([
-   query("SELECT id,first_name,last_name,email,role,vet_id,is_active,is_locked,lockout_until,mobile_verified,access_revision,access_reason FROM users WHERE role IN ('vet','assistant','admin') ORDER BY last_name,first_name,id"),
+   query("SELECT id,first_name,last_name,email,role,vet_id,is_active,is_locked,lockout_until,mobile_verified,access_revision,access_reason,archived_at FROM users WHERE role IN ('vet','assistant','admin') ORDER BY last_name,first_name,id"),
    query("SELECT id,email,name,role,expired_at,accepted_at FROM staff_invitations ORDER BY created_at DESC LIMIT 100"),
    query('SELECT COUNT(*)::int AS count FROM users')
   ]);
-  res.set('Cache-Control','no-store').json({staff:staff.rows.map(u=>({id:u.id,name:[u.first_name,u.last_name].filter(Boolean).join(' '),email:u.email,role:u.role,self:u.id===req.user.id,vetId:u.vet_id,active:u.is_active,locked:u.is_locked,lockedUntil:u.lockout_until,mobileVerified:u.mobile_verified,revision:u.access_revision,reason:u.access_reason})),invitations:invitations.rows.map(i=>({id:i.id,email:i.email,name:i.name,role:i.role,expiresAt:i.expired_at,status:i.accepted_at?'Accepted':new Date(i.expired_at)>new Date()?'Pending':'Expired or revoked'})),accountCount:count.rows[0].count});
+  res.set('Cache-Control','no-store').json({staff:staff.rows.map(u=>({id:u.id,name:[u.first_name,u.last_name].filter(Boolean).join(' '),email:u.email,role:u.role,self:u.id===req.user.id,vetId:u.vet_id,active:u.is_active,locked:u.is_locked,lockedUntil:u.lockout_until,mobileVerified:u.mobile_verified,revision:u.access_revision,reason:u.access_reason,archived:!!u.archived_at,archivedAt:u.archived_at})),invitations:invitations.rows.map(i=>({id:i.id,email:i.email,name:i.name,role:i.role,expiresAt:i.expired_at,status:i.accepted_at?'Accepted':new Date(i.expired_at)>new Date()?'Pending':'Expired or revoked'})),accountCount:count.rows[0].count});
  } catch {res.status(500).json({error:'Unable to load staff accounts. Please retry.'});}
 });
 adminRouter.post('/staff/:id/access',async(req,res)=>{
  try {
   const {action,revision}=req.body;
-  if (!['deactivate','reactivate','unlock'].includes(action)) throw problem('Choose a valid staff access action.');
+  if (!['deactivate','reactivate','unlock','archive','unarchive'].includes(action)) throw problem('Choose a valid staff access action.');
   const reason = chosenReason(ACCESS_REASONS[action],req.body);
   if (!Number.isInteger(revision) || revision<0) throw problem('Refresh the staff list before changing access.',409);
   if (action==='deactivate') await ensureAdmissionsSchema();
@@ -56,17 +58,50 @@ adminRouter.post('/staff/:id/access',async(req,res)=>{
    if (action==='deactivate' && u.role==='admin' && !(await client.query("SELECT 1 FROM users WHERE role='admin' AND is_active AND id<>$1 LIMIT 1",[u.id])).rows.length) throw problem('At least one active administrator must remain.',409);
    if (u.access_revision!==revision) throw problem('This account changed. Refresh and review its current status.',409);
    if (action==='deactivate' && !u.is_active || action==='reactivate' && u.is_active || action==='unlock' && (!u.is_active || !u.is_locked)) throw problem('This action does not match the current account status. Refresh the list.',409);
+   if (u.archived_at ? action!=='unarchive' : action==='unarchive') throw problem(u.archived_at?'Restore this account from the archive first.':'This account is not archived. Refresh the list.',409);
+   if (action==='archive' && u.is_active) throw problem('Deactivate this account before archiving it.',409);
    if(action==='deactivate' && u.role==='vet') {
     const active=(await client.query("SELECT COUNT(*)::int AS count FROM appointments WHERE vet_id = ANY($1::varchar[]) AND (status IN ('Checked-in','In consultation') OR EXISTS (SELECT 1 FROM admissions d WHERE d.appt_id=appointments.id AND d.status<>'Discharged'))",[[u.id,u.vet_id].filter(Boolean)])).rows[0].count;
     if(active)throw problem(`Transfer waiting or active consultations and complete any remaining admissions before deactivating this account (${active} patient visit(s) still under care).`,409);
    }
-   if(action==='unlock') await client.query('UPDATE users SET is_locked=false,failed_login_attempts=0,lockout_until=NULL,access_reason=$2,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,reason]);
+   if(action==='archive'||action==='unarchive') await client.query('UPDATE users SET archived_at=$2,access_reason=$3,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,action==='archive'?new Date():null,reason]);
+   else if(action==='unlock') await client.query('UPDATE users SET is_locked=false,failed_login_attempts=0,lockout_until=NULL,access_reason=$2,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,reason]);
    else await client.query('UPDATE users SET is_active=$2,access_reason=$3,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,action==='reactivate',reason.trim()]);
    await client.query('DELETE FROM sessions WHERE user_id=$1',[u.id]);
    await audit(client,req.user,`Staff access ${action}: ${u.id} (${u.role}); before active=${u.is_active}, locked=${u.is_locked}, revision=${revision}; reason: ${reason}. Sessions revoked.`);
   });
   res.json({success:true});
  } catch(error){res.status(error.status||500).json({error:error.status?error.message:'Access change was not saved. Keep your reason and retry.'});}
+});
+// Edit a staff account's role. Name, email and mobile belong to the staff member's own profile settings.
+adminRouter.put('/staff/:id',async(req,res)=>{
+ try {
+  const {role,revision}=req.body||{};
+  if (!STAFF_ROLES[role]) throw problem('Choose a valid staff role.');
+  if (!Number.isInteger(revision) || revision<0) throw problem('Refresh the staff list before editing this account.',409);
+  const reason = chosenReason(ACCESS_REASONS.role,req.body);
+  await ensureAdmissionsSchema();
+  await withTransaction(async client=>{
+   await lockSchedule(client);
+   const u=(await client.query('SELECT * FROM users WHERE id = $1 FOR UPDATE',[req.params.id])).rows[0];
+   if (!u || !['vet','assistant','admin'].includes(u.role)) throw problem('Only staff accounts can be managed here.',403);
+   if (u.id===req.user.id) throw problem('You cannot change your own role. Ask another administrator.',403);
+   if (u.access_revision!==revision) throw problem('This account changed. Refresh and review its current status.',409);
+   if (u.archived_at) throw problem('Restore this account from the archive before editing it.',409);
+   if (u.role===role) throw problem('Choose a different role to save a change.');
+   if (u.role==='admin' && u.is_active && !(await client.query("SELECT 1 FROM users WHERE role='admin' AND is_active AND id<>$1 LIMIT 1",[u.id])).rows.length) throw problem('At least one active administrator must remain.',409);
+   if (u.role==='vet') {
+    const open=(await client.query("SELECT COUNT(*)::int AS count FROM appointments WHERE vet_id = ANY($1::varchar[]) AND (status IN ('Checked-in','In consultation') OR EXISTS (SELECT 1 FROM admissions d WHERE d.appt_id=appointments.id AND d.status<>'Discharged'))",[[u.id,u.vet_id].filter(Boolean)])).rows[0].count;
+    if (open) throw problem(`Transfer waiting or active consultations and complete any remaining admissions before changing this veterinarian's role (${open} patient visit(s) still under care).`,409);
+   }
+   // A doctor ID is kept once given, so earlier visits stay linked to the same veterinarian.
+   const vetId = role==='vet' && !u.vet_id ? 'v_'+randomHex(8) : u.vet_id;
+   await client.query('UPDATE users SET role=$2,vet_id=$3,access_reason=$4,access_revision=access_revision+1,updated_at=NOW() WHERE id=$1',[u.id,role,vetId,reason]);
+   await client.query('DELETE FROM sessions WHERE user_id=$1',[u.id]);
+   await audit(client,req.user,`Staff role changed: ${u.id} from ${u.role} to ${role}; revision=${revision}; reason: ${reason}. Sessions revoked.`);
+  });
+  res.json({success:true});
+ } catch(error){res.status(error.status||500).json({error:error.status?error.message:'Role change was not saved. Keep your reason and retry.'});}
 });
 adminRouter.post('/invitations/:id/revoke',async(req,res)=>{
  try {

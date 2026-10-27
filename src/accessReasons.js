@@ -8,6 +8,9 @@ export const ACCESS_REASONS = {
   deactivate: [['left_clinic', 'Resigned or left the clinic'], ['contract_ended', 'Contract or employment ended'], ['role_change', 'Moved to a role without clinic access'], ['security', 'Security concern or suspected misuse'], ['leave', 'Extended leave of absence'], ['duplicate', 'Duplicate account'], other],
   reactivate: [['returned', 'Returned to work'], ['identity_verified', 'Identity re-verified'], ['by_mistake', 'Deactivated by mistake'], ['contract_renewed', 'Contract renewed'], other],
   unlock: [['forgot_password', 'Forgot their password'], ['identity_verified', 'Identity verified in person'], ['mistyped', 'Mistyped the password too many times'], other],
+  archive: [['left_clinic', 'Left the clinic permanently'], ['duplicate', 'Duplicate account'], ['created_by_mistake', 'Created by mistake'], ['records_cleanup', 'Staff list clean-up'], other],
+  unarchive: [['returned', 'Returning to the clinic'], ['by_mistake', 'Archived by mistake'], other],
+  role: [['promotion', 'Promotion or new responsibilities'], ['reassigned', 'Reassigned to another team'], ['wrong_role', 'Wrong role chosen at invitation'], ['coverage', 'Temporary staffing coverage'], other],
   revoke: [['wrong_email', 'Sent to the wrong email address'], ['wrong_role', 'Wrong role selected'], ['not_joining', 'The person is no longer joining'], ['replace', 'Replacing it with a new invitation'], other],
 };
 
