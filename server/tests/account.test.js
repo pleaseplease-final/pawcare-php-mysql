@@ -125,7 +125,8 @@ test('wrong current password cannot update the stored hash', async () => {
   assert.equal(result.status, 400);
   assert.ok(result.data.errors.cur);
 });
-test('password success hashes new password and revokes other sessions for this user', async () => {
-  steps = [session('admin'), { sql: /SELECT password_hash FROM users .*FOR UPDATE/, rows: [{ password_hash: await hashPassword('OriginalPassword12!') }] }, { sql: /UPDATE users SET password_hash/, check: async p => { assert.equal(p[1], 'test-admin'); assert.notEqual(p[0], 'NewPassword12!'); assert.ok(await verifyPassword('NewPassword12!', p[0])); } }, { sql: /DELETE FROM sessions WHERE user_id = \$1 AND token_hash <> \$2/, params: ['test-admin', sha256(sid)] }, { sql: /INSERT INTO audit_logs/, params: ['Test Account', 'admin', 'Changed own password'] }];
-  assert.equal((await request('/password', { cur: 'OriginalPassword12!', next: 'NewPassword12!', conf: 'NewPassword12!' })).status, 200);
+test('password success hashes new password and ends every session for this user, this device included', async () => {
+  steps = [session('admin'), { sql: /SELECT password_hash FROM users .*FOR UPDATE/, rows: [{ password_hash: await hashPassword('OriginalPassword12!') }] }, { sql: /UPDATE users SET password_hash/, check: async p => { assert.equal(p[1], 'test-admin'); assert.notEqual(p[0], 'NewPassword12!'); assert.ok(await verifyPassword('NewPassword12!', p[0])); } }, { sql: /DELETE FROM sessions WHERE user_id = \$1$/, params: ['test-admin'] }, { sql: /INSERT INTO audit_logs/, params: ['Test Account', 'admin', 'Changed own password'] }];
+  const result = await request('/password', { cur: 'OriginalPassword12!', next: 'NewPassword12!', conf: 'NewPassword12!' });
+  assert.equal(result.status, 200); assert.equal(result.data.signedOut, true, 'the response tells the page to sign out');
 });

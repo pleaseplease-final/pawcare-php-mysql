@@ -2,7 +2,7 @@ import { requestContactChange, verifyContactChange } from '../contactChanges.js'
 import express from 'express';
 import { query, withTransaction } from '../db.js';
 import { requireAuth } from './auth.js';
-import { hashPassword, verifyPassword, validatePasswordComplexity, sha256 } from '../security.js';
+import { hashPassword, verifyPassword, validatePasswordComplexity } from '../security.js';
 
 export const accountRouter = express.Router();
 accountRouter.use(requireAuth);
@@ -89,13 +89,13 @@ accountRouter.post('/password', async (req, res) => {
       const result = await client.query('SELECT password_hash FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
       if (!result.rows[0] || !await verifyPassword(cur, result.rows[0].password_hash)) return false;
       await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [await hashPassword(next), req.user.id]);
-      const sid = req.cookies?.sid || req.headers.authorization?.replace('Bearer ', '');
-      await client.query('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [req.user.id, sha256(sid)]);
+      // A password change ends every session, this device included, so the new password is used straight away.
+      await client.query('DELETE FROM sessions WHERE user_id = $1', [req.user.id]);
       await client.query('INSERT INTO audit_logs (user_name, user_role, action) VALUES ($1, $2, $3)', [req.user.name, req.user.role, 'Changed own password']);
       return true;
     });
     if (!changed) return res.status(400).json({ error: 'Current password is incorrect.', errors: { cur: 'Current password is incorrect.' } });
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', signedOut: true });
   } catch (error) {
     console.error('Change account password failed:', error.message);
     res.status(500).json({ error: 'Your password could not be changed. Please try again.' });

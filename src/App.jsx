@@ -78,6 +78,7 @@ export default function App() {
   const [loadedFor, setLoadedFor] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const retrySync = useRef(() => {});
+  const signingOut = useRef(false);   // set while a deliberate sign-out is under way, so a 401 is not shown as "session ended"
   const [otpEnabled, setOtpEnabled] = useState(() => getInitialView() !== "otp");
   const dbRef = useRef(db); dbRef.current = db;
   // Wake the server and database while the person is still reading the first screen, and
@@ -151,6 +152,7 @@ export default function App() {
       },
       onError: error => {
         showProgress = true;
+        if (signingOut.current) { sync.stop(); return; }
         if (error.status === 401 || error.status === 403) {
           sync.stop(); clearStateCache();
           setDb(emptyClinicState()); setLoadedFor(""); setMe(null); saveCachedUser(null); setSessionUser(null);
@@ -165,6 +167,15 @@ export default function App() {
   }, [me?.id, me?.role, restoring]);
   /* Log out here and on the server. A message (e.g. idle timeout) sends the person to Log in with that notice. */
   const logout = async msg => { clearStateCache(); try { await auth.logout(); } catch { /* signed out here either way */ } try { localStorage.removeItem("pawcare_token"); sessionStorage.removeItem("pawcare_token"); } catch (_) {} setDb(emptyClinicState()); setLoadedFor(""); setClinicError(""); setMe(null); saveCachedUser(null); setSessionUser(null); window.history.replaceState(null, "", window.location.pathname); setNotice(msg || ""); setBad(false); setView(msg ? "login" : "landing"); };
+  /* Changing the password ends every session, including this one: go to Log in with a notice. */
+  useEffect(() => {
+    const onSignedOut = event => {
+      signingOut.current = true;
+      Promise.resolve(logout(event.detail?.message || "Please log in again.")).finally(() => { signingOut.current = false; });
+    };
+    window.addEventListener("pawcare:signed-out", onSignedOut);
+    return () => window.removeEventListener("pawcare:signed-out", onSignedOut);
+  });
   /* Work Shift Session Timeout: 8 hours (standard full clinic shift) */
   useEffect(() => {
     if (!me) return;

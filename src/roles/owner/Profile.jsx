@@ -237,7 +237,13 @@ function Password({ me, say, onDone, onFormState }) {
     e.preventDefault(); setTop(""); f.submit(e);
     if (!f.valid || busy) return;
     setBusy(true);
-    try { await auth.changePassword({ cur: v.cur, next: v.next, conf: v.conf }); say("Password changed. Use it next time you log in"); onDone(); return; }
+    try {
+      await auth.changePassword({ cur: v.cur, next: v.next, conf: v.conf });
+      // The server has ended every session, so sign out here too and ask for the new password.
+      onFormState?.({ dirty: false, busy: false });
+      window.dispatchEvent(new CustomEvent("pawcare:signed-out", { detail: { message: "Password changed. Please log in with your new password." } }));
+      return;
+    }
     catch (x) {
       const m = explain(x);
       if (m.fields) {

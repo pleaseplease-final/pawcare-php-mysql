@@ -69,7 +69,7 @@
 @media(max-width:820px){.ow-split{grid-template-columns:1fr}.ow-petlist{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}}
 /* calendar */
 .ow-cal{background:#fff;border:2px solid var(--ln);border-radius:20px;padding:14px;margin-bottom:14px}
-.ow-calhd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.ow-calhd h2{margin:0;font-size:calc(20px*var(--fs,1));color:var(--navy);flex:1;min-width:140px}
+.ow-calhd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.ow-calhd h2{margin:0;font-size:calc(20px*var(--fs,1));color:var(--navy);flex:1;min-width:max-content}
 .ow-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.ow-dow{text-align:center;font-size:calc(12px*var(--fs,1));font-weight:700;color:var(--mu);padding:4px 0}
 .ow-day{min-height:92px;background:#fafbff;border:1px solid var(--ln);border-radius:12px;padding:5px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:3px;overflow:hidden;color:var(--ink)}
 .ow-day:hover{border-color:var(--blue)}.ow-day.out{opacity:.45}.ow-day.today{border:2px solid var(--blue);background:#eef3ff}.ow-day.sel{box-shadow:0 0 0 3px rgba(37,99,235,.28);background:var(--sky)}

@@ -240,7 +240,7 @@ function MiniCalendar({ ev, day, setDay }) {
       <div className="ow-calhd">
         <button className="btn ghost sm" onClick={() => move(-1)} aria-label="Previous month">‹</button>
         <h2 aria-live="polite">{MONTHS[cur.m]} {cur.y}</h2>
-        <button className="btn ghost sm" onClick={() => { setCur({ y: t.getFullYear(), m: t.getMonth() }); setDay(TODAY); }}>Today</button>
+        <button className="btn ghost sm ow-cal-today" onClick={() => { setCur({ y: t.getFullYear(), m: t.getMonth() }); setDay(TODAY); }}>Today</button>
         <button className="btn ghost sm" onClick={() => move(1)} aria-label="Next month">›</button>
       </div>
       <div className="ow-grid" role="grid" aria-label="Calendar">
@@ -304,7 +304,8 @@ export default function OwnerAppts({ db, setDb, me, say }) {
 
     <style>{`.ap-split{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:16px;align-items:start}
 @media(max-width:1180px){.ap-split{grid-template-columns:1fr}.ap-split .ow-cal{max-width:520px}}
-.ap-split .ow-calhd{flex-wrap:nowrap;gap:6px}.ap-split .ow-calhd h2{min-width:0;font-size:calc(18px*var(--fs,1));white-space:nowrap}
+/* Narrow calendar column: the month gets its own line, then previous / Today / next share one bar, so nothing overlaps. */
+.ap-split .ow-calhd{flex-wrap:wrap;gap:8px 6px}.ap-split .ow-calhd h2{flex:1 1 100%;order:-1;min-width:0;font-size:calc(19px*var(--fs,1));white-space:nowrap}.ap-split .ow-calhd .ow-cal-today{flex:1 1 auto}
 .ap-split .tw{overflow-x:visible}.ap-split table{width:100%;table-layout:auto}
 .ap-split td,.ap-split th{vertical-align:top}.ap-when{white-space:nowrap}.ap-when b,.ap-visit b{display:block;font-weight:700;color:var(--navy)}
 .ap-visit{min-width:170px}.ap-status{min-width:180px;max-width:260px}.ap-status .visit-next-step{margin:6px 0 0;padding:6px 8px;font-size:calc(11.5px*var(--fs,1));line-height:1.4}
