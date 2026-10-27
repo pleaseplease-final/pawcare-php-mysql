@@ -54,9 +54,10 @@ class PasswordRecoveryController {
         return !empty($user['mobile_verified']) && !empty($user['mobile_number']);
     }
 
-    /** POST /api/auth/forgot/options  {email} -> the ways a code can be delivered. */
+    /** POST /api/auth/forgot/options  {email|identifier} -> the ways a code can be delivered. */
     public static function options(): void {
-        $email = trim((string) (self::input()['email'] ?? ''));
+        $data = self::input();
+        $email = trim((string) ($data['email'] ?? $data['identifier'] ?? ''));
         if ($message = Validator::email($email)) {
             self::json(422, ['success' => false, 'error' => $message, 'errors' => ['email' => $message]]);
             return;
@@ -71,15 +72,22 @@ class PasswordRecoveryController {
             self::json(403, ['success' => false, 'deactivated' => true, 'error' => 'This account is deactivated. Contact the clinic administrator.']);
             return;
         }
-        $channels = [['id' => 'email', 'label' => 'Email', 'destination' => self::maskEmail($user['email'])]];
-        if (self::smsReady($user)) $channels[] = ['id' => 'sms', 'label' => 'Text message', 'destination' => self::maskPhone($user['mobile_number'])];
-        self::json(200, ['success' => true, 'channels' => $channels]);
+        $channels = [['id' => 'email', 'label' => 'Email', 'destination' => self::maskEmail($user['email']), 'masked' => self::maskEmail($user['email'])]];
+        if (self::smsReady($user)) $channels[] = ['id' => 'sms', 'label' => 'Text message', 'destination' => self::maskPhone($user['mobile_number']), 'masked' => self::maskPhone($user['mobile_number'])];
+        self::json(200, [
+            'success' => true,
+            'status' => 'ok',
+            'channels' => $channels,
+            'options' => $channels,
+            'email' => self::maskEmail($user['email']),
+            'sms' => self::smsReady($user) ? self::maskPhone($user['mobile_number']) : null,
+        ]);
     }
 
-    /** POST /api/auth/forgot  {email, channel: email|sms} -> sends the code. */
+    /** POST /api/auth/forgot  {email|identifier, channel: email|sms} -> sends the code. */
     public static function request(): void {
         $data = self::input();
-        $email = trim((string) ($data['email'] ?? ''));
+        $email = trim((string) ($data['email'] ?? $data['identifier'] ?? ''));
         $channel = ($data['channel'] ?? 'email') === 'sms' ? 'sms' : 'email';
         if ($message = Validator::email($email)) {
             self::json(422, ['success' => false, 'error' => $message, 'errors' => ['email' => $message]]);
@@ -122,21 +130,22 @@ class PasswordRecoveryController {
         }
         $pdo->prepare('UPDATE password_resets SET sent = 1 WHERE user_id = ?')->execute([$user['id']]);
         $destination = $channel === 'sms' ? self::maskPhone($user['mobile_number']) : self::maskEmail($user['email']);
-        self::json(202, ['success' => true, 'channel' => $channel, 'destination' => $destination, 'retryAfter' => 60,
+        self::json(202, ['success' => true, 'status' => 'ok', 'channel' => $channel, 'destination' => $destination, 'retryAfter' => 60,
             'message' => 'A 6-digit code was sent by ' . ($channel === 'sms' ? 'text message' : 'email') . " to {$destination}. It expires in 10 minutes."]);
     }
 
-    /** POST /api/auth/reset  {email, code, password, confirm_password} */
+    /** POST /api/auth/reset  {email|identifier, code, password, confirm_password?} */
     public static function reset(): void {
         $data = self::input();
-        $email = trim((string) ($data['email'] ?? ''));
+        $email = trim((string) ($data['email'] ?? $data['identifier'] ?? ''));
         $code = (string) ($data['code'] ?? '');
         $password = (string) ($data['password'] ?? '');
+        $confirm = array_key_exists('confirm_password', $data) ? (string) $data['confirm_password'] : $password;
         $errors = Validator::errors([
             'email' => Validator::email($email),
             'code' => preg_match('/^\d{6}$/', $code) ? '' : 'Enter the 6-digit code.',
             'password' => Validator::password($password, $email),
-            'confirm_password' => hash_equals($password, (string) ($data['confirm_password'] ?? '')) ? '' : 'Passwords do not match.',
+            'confirm_password' => hash_equals($password, $confirm) ? '' : 'Passwords do not match.',
         ]);
         if ($errors) {
             self::json(422, ['success' => false, 'error' => 'Check the highlighted fields.', 'errors' => $errors]);
@@ -192,6 +201,6 @@ class PasswordRecoveryController {
             self::json(500, ['success' => false, 'error' => 'Your password was not changed. Please try again.']);
             return;
         }
-        self::json(200, ['success' => true, 'message' => 'Password changed. Please log in.']);
+        self::json(200, ['success' => true, 'status' => 'ok', 'message' => 'Password changed. Please log in.']);
     }
 }

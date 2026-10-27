@@ -23,26 +23,51 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../config/schema.php';
 
 class AuthMiddleware {
+    public static function formatUser(array $u): array {
+        $mi = trim((string) ($u['middle_initial'] ?? ''));
+        $fullName = trim(($u['first_name'] ?? '') . ($mi !== '' ? ' ' . rtrim($mi, '.') . '.' : '') . ' ' . ($u['last_name'] ?? ''));
+        return [
+            'id' => $u['id'],
+            'first_name' => $u['first_name'] ?? '',
+            'last_name' => $u['last_name'] ?? '',
+            'middle_initial' => $u['middle_initial'] ?? null,
+            'firstName' => $u['first_name'] ?? '',
+            'lastName' => $u['last_name'] ?? '',
+            'middleInitial' => $u['middle_initial'] ?? null,
+            'name' => $fullName,
+            'email' => $u['email'] ?? '',
+            'role' => $u['role'] ?? 'owner',
+            'vet_id' => $u['vet_id'] ?? null,
+            'owner_id' => $u['owner_id'] ?? null,
+            'vetId' => $u['vet_id'] ?? null,
+            'ownerId' => ($u['owner_id'] ?? null) ?: $u['id'],
+            'mobile_number' => $u['mobile_number'] ?? '',
+            'phone' => $u['mobile_number'] ?? '',
+            'birthday' => $u['birthday'] ?? '',
+            'emailVerified' => !empty($u['email_verified_at']),
+            'mobileVerified' => !empty($u['mobile_verified']),
+            'address' => [
+                'houseStreet' => $u['house_street'] ?? '',
+                'country' => $u['country'] ?? '',
+                'city' => $u['city'] ?? '',
+                'state' => $u['state'] ?? '',
+                'zipCode' => $u['zip_code'] ?? '',
+            ],
+        ];
+    }
+
     /**
-     * Get the authenticated user from Session or Bearer Token
+     * Get the authenticated user from Session, Cookie ('sid' / 'pawcare_token'), or Bearer Token
      */
     public static function getCurrentUser(): ?array {
-        // 1. Check PHP Session (the database is only opened when there is something to verify)
-        if (!empty($_SESSION['user_id'])) {
-            $pdo = Database::getConnection();
-            Schema::ensure($pdo);
-            $stmt = $pdo->prepare("SELECT id, first_name, last_name, email, role, vet_id, owner_id FROM users WHERE id = ? AND is_locked = 0 AND is_active = 1");
-            $stmt->execute([$_SESSION['user_id']]);
-            $user = $stmt->fetch();
-            if ($user) return $user;
-        }
-
-        // 2. Check Authorization Bearer Header or Cookie
+        // 1. Check Authorization Bearer Header or Cookie first if present
         $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
         $token = null;
 
         if (preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
             $token = $matches[1];
+        } elseif (!empty($_COOKIE['sid'])) {
+            $token = $_COOKIE['sid'];
         } elseif (!empty($_COOKIE['pawcare_token'])) {
             $token = $_COOKIE['pawcare_token'];
         }
@@ -52,18 +77,36 @@ class AuthMiddleware {
             Schema::ensure($pdo);
             $tokenHash = hash('sha256', $token);
             $stmt = $pdo->prepare("
-                SELECT u.id, u.first_name, u.last_name, u.email, u.role, u.vet_id, u.owner_id
+                SELECT u.*, a.house_street, a.country, a.city, a.state, a.zip_code
                 FROM sessions s
                 JOIN users u ON u.id = s.user_id
-                WHERE s.token_hash = ? AND s.expires_at > NOW() AND u.is_locked = 0 AND u.is_active = 1
+                LEFT JOIN addresses a ON a.user_id = u.id
+                WHERE s.token_hash = ? AND s.expires_at > ? AND u.is_locked = 0 AND u.is_active = 1
+                LIMIT 1
             ");
-            $stmt->execute([$tokenHash]);
+            $stmt->execute([$tokenHash, date('Y-m-d H:i:s')]);
             $user = $stmt->fetch();
             if ($user) {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role'] = $user['role'];
-                return $user;
+                return self::formatUser($user);
             }
+        }
+
+        // 2. Check PHP Session (used by PHP console/portal/dashboard and session cookies)
+        if (!empty($_SESSION['user_id'])) {
+            $pdo = Database::getConnection();
+            Schema::ensure($pdo);
+            $stmt = $pdo->prepare("
+                SELECT u.*, a.house_street, a.country, a.city, a.state, a.zip_code
+                FROM users u
+                LEFT JOIN addresses a ON a.user_id = u.id
+                WHERE u.id = ? AND u.is_locked = 0 AND u.is_active = 1
+                LIMIT 1
+            ");
+            $stmt->execute([$_SESSION['user_id']]);
+            $user = $stmt->fetch();
+            if ($user) return self::formatUser($user);
         }
 
         return null;
@@ -126,4 +169,3 @@ class AuthMiddleware {
         return $user;
     }
 }
-

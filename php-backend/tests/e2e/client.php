@@ -617,6 +617,29 @@ $t = $q->csrf('/portal.php?page=account');
 $q->req('POST', '/portal.php', ['action' => 'logout', 'csrf' => $t]);
 check('portal: signing out ends the session', $q->req('GET', '/portal.php?page=pets')['status'] === 401);
 
+// ---------- 5f. React data feed: /api/state (scoped by role)
+check('state: refuses anonymous callers', (new Client())->req('GET', '/api/state')['status'] === 401);
+$sa = $admin->req('GET', '/api/state');
+$da = $sa['json']['data'] ?? [];
+check('state: admin gets the camelCase clinic records', $sa['status'] === 200 && isset($da['owners'], $da['pets'], $da['appts'], $da['vaccs'], $da['consults'], $da['vets'], $da['petRequests'], $da['log']) && count($da['pets']) >= 4, substr($sa['body'], 0, 300));
+$wally = array_values(array_filter($da['pets'] ?? [], fn($p) => $p['id'] === 'p_w'))[0] ?? [];
+check('state: pets carry ownerId, weights and a vaccination card id', ($wally['ownerId'] ?? '') === 'o_w' && ($wally['weight'] ?? 0) == 6.4 && count($wally['weights'] ?? []) === 1 && str_starts_with($wally['vaccinationCardId'] ?? '', 'VACC-'));
+$visit = array_values(array_filter($da['appts'] ?? [], fn($a) => $a['id'] === 'a_w1'))[0] ?? [];
+check('state: visits expose billing, invoice items, vitals and payment details', ($visit['billingStatus'] ?? '') === 'Paid' && ($visit['paymentMethod'] ?? '') === 'GCash' && ($visit['paymentReference'] ?? '') === 'GC-778899' && count($visit['invoiceItems'] ?? []) === 2 && ($visit['intakeVitals']['triage'] ?? '') === 'Priority', json_encode($visit));
+check('state: the audit log is included for admin only', count($da['log'] ?? []) > 0 && ($assist->req('GET', '/api/state')['json']['data']['log'] ?? ['x']) === []);
+$sv = $vet->req('GET', '/api/state/summary')['json']['data'] ?? [];
+check('state: a vet sees only patients with a visit with them, and a summary block', ($sv['summary'] ?? false) === true && isset($sv['totals']['consultations']) && count($sv['pets'] ?? []) < count($da['pets']) && in_array('p_w', array_column($sv['pets'] ?? [], 'id'), true));
+$oc = new Client();
+$oc->signIn('quinn@example.test', 'Brand!New-Pass9x', '/portal.php');
+$so = $oc->req('GET', '/api/state');
+$do = $so['json']['data'] ?? [];
+check('state: an owner sees only their own pet, owner record and visits', $so['status'] === 200 && array_column($do['pets'] ?? [], 'id') === ['p_q'] && count($do['owners'] ?? []) === 1 && ($do['owners'][0]['email'] ?? '') === 'quinn@example.test' && ($do['log'] ?? ['x']) === [], substr($so['body'], 0, 400));
+check('state: an owner never receives another client\'s records', !str_contains($so['body'], 'wanda@example.test') && !str_contains($so['body'], 'Wally') && !str_contains($so['body'], 'GC-778899') && !str_contains($so['body'], 'Sprain'));
+$tag = $admin->req('GET', '/api/state');
+preg_match('/^ETag: (.+)$/mi', $tag['head'], $em);
+$ch = curl_init($base . '/api/state'); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['If-None-Match: ' . trim($em[1] ?? '')], CURLOPT_COOKIEFILE => $admin->jar]); curl_exec($ch);
+check('state: an unchanged copy answers 304 (saves bandwidth)', curl_getinfo($ch, CURLINFO_RESPONSE_CODE) === 304); curl_close($ch);
+
 // ---------- 6. Sign out
 $r = $admin->req('GET', '/console.php?page=owners');
 $t = $admin->csrf('/console.php?page=owners');

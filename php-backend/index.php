@@ -37,6 +37,7 @@ require_once __DIR__ . '/controllers/AppointmentsController.php';
 require_once __DIR__ . '/controllers/MedicalController.php';
 require_once __DIR__ . '/controllers/ReportsController.php';
 require_once __DIR__ . '/controllers/ClinicController.php';
+require_once __DIR__ . '/controllers/StateController.php';
 
 // Parse URI path
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -202,29 +203,8 @@ try {
     }
 
     // 8. Bootstrap / State Sync (For React Frontend)
-    if ($path === '/api/state') {
-        $pdo = Database::getConnection();
-        $user = AuthMiddleware::getCurrentUser();
-
-        $owners = $pdo->query("SELECT * FROM owners ORDER BY name ASC")->fetchAll();
-        $pets = $pdo->query("SELECT * FROM pets ORDER BY name ASC")->fetchAll();
-        $weights = $pdo->query("SELECT * FROM pet_weights ORDER BY date DESC")->fetchAll();
-        $appts = $pdo->query("SELECT * FROM appointments ORDER BY date DESC, time ASC")->fetchAll();
-        $vaccs = $pdo->query("SELECT * FROM vaccinations ORDER BY date DESC")->fetchAll();
-        $consults = $pdo->query("SELECT * FROM consultations ORDER BY date DESC")->fetchAll();
-        $vets = $pdo->query("SELECT id, first_name, last_name, role FROM users WHERE role = 'vet'")->fetchAll();
-
-        echo json_encode([
-            'success' => true,
-            'user' => $user,
-            'owners' => $owners,
-            'pets' => $pets,
-            'weights' => $weights,
-            'appointments' => $appts,
-            'vaccinations' => $vaccs,
-            'consultations' => $consults,
-            'vets' => $vets
-        ]);
+    if (in_array($path, ['/api/state', '/api/state/summary', '/api/state/history'], true) && $method === 'GET') {
+        StateController::get();
         exit;
     }
 
